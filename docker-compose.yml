@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   backend:
     build: ./backend
@@ -17,12 +16,13 @@ services:
     build: ./frontend
     container_name: aura-frontend
     env_file:
-      - ./frontend/.env
+      - ./frontend/.env.local
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-    command: npm run dev -- --host
+      - /app/node_modules
+    command: npm run dev
 
   db:
     image: postgres:16
