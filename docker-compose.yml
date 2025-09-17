@@ -22,10 +22,10 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    command: npm run dev
+    command: ["sh", "-c", "npm run dev -- --hostname 0.0.0.0"]
 
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: aura-db
     restart: always
     environment:
@@ -36,6 +36,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
 
 volumes:
   postgres_data:
