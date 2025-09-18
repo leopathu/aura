@@ -1,7 +1,14 @@
 fastapi==0.104.1
+starlette==0.27.0 
 uvicorn[standard]==0.24.0
 python-dotenv==1.0.0
 pydantic==2.5.1
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 alembic==1.13.1
+passlib[bcrypt]==1.7.4
+python-jose==3.3.0
+pydantic[email]
+pytest
+pytest-asyncio
+httpx==0.25.0 

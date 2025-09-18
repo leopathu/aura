@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   backend:
     build: ./backend
@@ -8,9 +10,12 @@ services:
       - "8000:8000"
     depends_on:
       - db
+      - aura-test-db
     volumes:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - aura-network
 
   frontend:
     build: ./frontend
@@ -23,6 +28,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     command: npm run dev
+    networks:
+      - aura-network
 
   db:
     image: postgres:16
@@ -35,7 +42,28 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - aura_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aura-network
+
+  aura-test-db:
+    image: postgres:16
+    container_name: aura-test-db
+    restart: always
+    environment:
+      POSTGRES_DB: test_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+    networks:
+      - aura-network
 
 volumes:
-  postgres_data:
+  aura_postgres_data:
+  test_postgres_data:
+
+networks:
+  aura-network:

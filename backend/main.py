@@ -1,3 +1,8 @@
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from src.auth import models 
+from src.auth.routes import get_db, router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -6,11 +11,19 @@ import os
 # Load environment variables
 load_dotenv()
 
+from src.auth import models
+from src.auth.database import engine  # PostgreSQL engine
+
+models.Base.metadata.create_all(bind=engine)
+
+
 app = FastAPI(
     title="Aura API",
     description="Augmented Understanding & Retrieval Assistant API",
     version="1.0.0"
 )
+
+app.include_router(router)
 
 # Configure CORS
 app.add_middleware(
