@@ -26,13 +26,13 @@ services:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - /app/node_module
     command: npm run dev
     networks:
       - aura-network
 
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: aura-db
     restart: always
     environment:
