@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from app.db.session import get_db
 from app.models.models import User, Organization
 from app.schemas.schemas import (
-    UserRegister, UserLogin, Token, PasswordReset, 
+    UserRegister, UserLogin, Token, TokenWithUser, PasswordReset, 
     PasswordResetConfirm, UserResponse
 )
 from app.core.security import (
@@ -62,15 +62,18 @@ async def register(
     await db.commit()
     await db.refresh(user)
     
+    # Load roles relationship
+    await db.refresh(user, ['roles'])
+    
     return user
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=TokenWithUser)
 async def login(
     credentials: UserLogin,
     db: AsyncSession = Depends(get_db)
 ):
-    """Login user and return tokens."""
+    """Login user and return tokens with user data."""
     # Get user by email
     result = await db.execute(select(User).where(User.email == credentials.email))
     user = result.scalar_one_or_none()
@@ -92,6 +95,9 @@ async def login(
     user.last_login = datetime.utcnow()
     await db.commit()
     
+    # Load roles relationship
+    await db.refresh(user, ['roles'])
+    
     # Create tokens
     access_token = create_access_token(data={"sub": user.id})
     refresh_token = create_refresh_token(data={"sub": user.id})
@@ -99,7 +105,8 @@ async def login(
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": user
     }
 
 

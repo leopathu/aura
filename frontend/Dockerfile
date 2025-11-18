@@ -11,9 +11,7 @@ RUN npm install
 # Copy application files
 COPY . .
 
-# Build application
-RUN npm run build
-
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Run in development mode
+CMD ["npm", "run", "dev"]
