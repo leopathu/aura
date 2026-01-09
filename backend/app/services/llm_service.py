@@ -1,112 +1,71 @@
-from openai import AsyncOpenAI
-from typing import List, Dict, Any
-from app.core.config import settings
-from app.services.embeddings import embedding_service
-from app.services.vector_store import vector_store
-
+"""
+LLM Service using LiteLLM for multi-model support
+"""
+from typing import List, Dict, Any, Optional
+import litellm
+from app.core.encryption import encryption_service
 
 class LLMService:
-    def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = settings.LLM_MODEL
-        self.temperature = settings.LLM_TEMPERATURE
-        self.max_tokens = settings.MAX_TOKENS
+    """Service for interacting with various LLM providers via LiteLLM."""
     
-    async def generate_response(
+    def __init__(self, api_key: str, model: str = "gpt-4"):
+        self.api_key = api_key
+        self.model = model
+    
+    async def chat_completion(
         self,
-        query: str,
-        brain_id: int,
-        chat_history: List[Dict[str, str]] = None,
-        max_context_docs: int = 5
-    ) -> Dict[str, Any]:
-        """Generate response using RAG."""
-        # Create embedding for query
-        query_embedding = await embedding_service.create_embedding(query)
-        
-        # Search for relevant documents
-        search_results = vector_store.search(
-            query_vector=query_embedding,
-            brain_id=brain_id,
-            limit=max_context_docs,
-            score_threshold=0.7
-        )
-        
-        # Build context from search results
-        context_parts = []
-        sources = []
-        
-        for result in search_results:
-            payload = result["payload"]
-            context_parts.append(payload["content"])
-            sources.append({
-                "document_id": payload["document_id"],
-                "content": payload["content"][:200] + "...",  # Preview
-                "score": result["score"],
-                "page": payload.get("page"),
-                "file_type": payload.get("file_type")
-            })
-        
-        context = "\n\n".join(context_parts)
-        
-        # Build messages for LLM
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a helpful AI assistant that answers questions based on the provided context. "
-                    "Always base your answers on the context provided. If the context doesn't contain "
-                    "relevant information, politely say so. Be concise and accurate."
-                )
-            }
-        ]
-        
-        # Add chat history if provided
-        if chat_history:
-            messages.extend(chat_history[-10:])  # Last 10 messages
-        
-        # Add current query with context
-        user_message = f"Context:\n{context}\n\nQuestion: {query}"
-        messages.append({"role": "user", "content": user_message})
-        
-        # Generate response
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens
-        )
-        
-        answer = response.choices[0].message.content
-        
-        return {
-            "answer": answer,
-            "sources": sources,
-            "context_used": len(search_results) > 0
-        }
-    
-    async def generate_chat_title(self, first_message: str) -> str:
-        """Generate a title for a chat session based on the first message."""
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        stream: bool = False
+    ) -> Any:
+        """Get chat completion from LLM."""
         try:
-            response = await self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Generate a short, concise title (max 6 words) for this conversation based on the user's message."
-                    },
-                    {
-                        "role": "user",
-                        "content": first_message
-                    }
-                ],
-                temperature=0.7,
-                max_tokens=20
+            response = await litellm.acompletion(
+                model=self.model,
+                messages=messages,
+                api_key=self.api_key,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
             )
-            title = response.choices[0].message.content.strip()
-            return title
-        except:
-            return "New Chat"
-
-
-# Global instance
-llm_service = LLMService()
+            return response
+        except Exception as e:
+            raise Exception(f"LLM request failed: {str(e)}")
+    
+    async def stream_completion(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7
+    ):
+        """Stream chat completion from LLM."""
+        try:
+            response = await litellm.acompletion(
+                model=self.model,
+                messages=messages,
+                api_key=self.api_key,
+                temperature=temperature,
+                stream=True
+            )
+            
+            async for chunk in response:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            raise Exception(f"LLM streaming failed: {str(e)}")
+    
+    @staticmethod
+    def create_from_credential(encrypted_key: str, credential_type: str) -> "LLMService":
+        """Create LLM service from encrypted credential."""
+        api_key = encryption_service.decrypt(encrypted_key)
+        
+        # Map credential type to model
+        model_map = {
+            "openai": "gpt-4",
+            "anthropic": "claude-3-sonnet-20240229",
+            "gemini": "gemini/gemini-pro"
+        }
+        
+        model = model_map.get(credential_type, "gpt-4")
+        return LLMService(api_key=api_key, model=model)

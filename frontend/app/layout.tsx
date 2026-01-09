@@ -1,14 +1,12 @@
+import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './globals.css'
-import Providers from '@/components/Providers'
-import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Aura - RAG System',
-  description: 'Enterprise RAG System for Document Management and AI Chat',
+  title: 'Aura - AI Agent Platform',
+  description: 'Your intelligent AI agent for managing work across all your tools',
 }
 
 export default function RootLayout({
@@ -18,12 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <Providers>
-          {children}
-          <Toaster />
-        </Providers>
-      </body>
+      <body className={inter.className}>{children}</body>
     </html>
   )
 }

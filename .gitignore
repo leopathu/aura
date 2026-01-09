@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -19,42 +22,42 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
-venv/
-env/
-ENV/
 
-# Backend specific
-backend/.env
-backend/uploads/
-*.db
+# FastAPI
+.env
+.env.local
 
 # Node
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.next/
+out/
+build/
+.DS_Store
+*.pem
 
-# Frontend specific
-frontend/.next/
-frontend/out/
-frontend/.env.local
-frontend/.env.development.local
-frontend/.env.test.local
-frontend/.env.production.local
-
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS
 .DS_Store
+Thumbs.db
 
 # Docker
-*.log
+docker-compose.override.yml
 
-# Misc
-.env
-*.bak
-*.tmp
+# Environment
+.env.production
+.env.development

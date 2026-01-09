@@ -1,45 +1,41 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import auth, users, brains, documents, chat
+from app.api.v1.router import api_router
+from app.db.session import engine
+from app.db.base import Base
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    debug=settings.DEBUG
+    description="Aura - AI Agent Platform",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
-app.include_router(users.router, prefix=f"{settings.API_V1_STR}", tags=["users", "organization"])
-app.include_router(brains.router, prefix=f"{settings.API_V1_STR}/brains", tags=["brains"])
-app.include_router(documents.router, prefix=f"{settings.API_V1_STR}/brains", tags=["documents"])
-app.include_router(chat.router, prefix=f"{settings.API_V1_STR}", tags=["chat"])
-
+# Include API routes
+app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
     return {
-        "message": "Welcome to Aura RAG System",
+        "message": "Welcome to Aura AI Agent Platform",
         "version": settings.APP_VERSION,
-        "docs": "/docs"
+        "docs": "/api/docs"
     }
 
-
 @app.get("/health")
-async def health():
+async def health_check():
     return {"status": "healthy"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

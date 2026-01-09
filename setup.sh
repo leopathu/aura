@@ -1,87 +1,116 @@
 #!/bin/bash
 
-# Aura RAG System Setup Script
+# Aura MVP - Quick Setup Script
 
-echo "🚀 Setting up Aura RAG System..."
+echo "🌟 Setting up Aura AI Agent Platform..."
 
 # Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed. Please install Docker first."
-    exit 1
-fi
-
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
-    exit 1
-fi
-
-# Create backend .env if it doesn't exist
-if [ ! -f backend/.env ]; then
-    echo "📝 Creating backend .env file..."
-    cp backend/.env.example backend/.env
-    echo "⚠️  Please edit backend/.env and add your API keys (OPENAI_API_KEY, SECRET_KEY)"
-fi
-
-# Create frontend .env.local if it doesn't exist
-if [ ! -f frontend/.env.local ]; then
-    echo "📝 Creating frontend .env.local file..."
-    echo "NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1" > frontend/.env.local
-fi
-
-# Start Docker containers
-echo "🐳 Starting Docker containers..."
-docker-compose up -d
-
-# Wait for services to be ready
-echo "⏳ Waiting for services to start..."
-sleep 10
-
-# Check if backend is ready
-echo "🔍 Checking backend health..."
-max_attempts=30
-attempt=0
-while [ $attempt -lt $max_attempts ]; do
-    if curl -s http://localhost:8000/health > /dev/null 2>&1; then
-        echo "✅ Backend is ready!"
-        break
+if command -v docker &> /dev/null; then
+    echo "✓ Docker found"
+    
+    # Ask user if they want to use Docker
+    read -p "Do you want to use Docker for setup? (y/n): " use_docker
+    
+    if [ "$use_docker" = "y" ]; then
+        echo "🐳 Starting services with Docker..."
+        docker-compose up -d
+        
+        echo ""
+        echo "✅ Aura is running!"
+        echo "📱 Frontend: http://localhost:3000"
+        echo "🔧 Backend API: http://localhost:8000"
+        echo "📚 API Docs: http://localhost:8000/api/docs"
+        echo ""
+        echo "To view logs: docker-compose logs -f"
+        echo "To stop: docker-compose down"
+        exit 0
     fi
-    attempt=$((attempt+1))
-    echo "Waiting for backend... ($attempt/$max_attempts)"
-    sleep 2
-done
+fi
 
-if [ $attempt -eq $max_attempts ]; then
-    echo "❌ Backend failed to start. Check logs with: docker-compose logs backend"
+# Manual setup
+echo "📦 Setting up manually..."
+
+# Check Python
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python 3 is required but not installed"
     exit 1
 fi
 
-# Run database migrations
-echo "📊 Running database migrations..."
-docker-compose exec -T backend alembic upgrade head
-
-if [ $? -eq 0 ]; then
-    echo "✅ Database migrations completed!"
-else
-    echo "❌ Database migrations failed. Check logs with: docker-compose logs backend"
+# Check Node.js
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is required but not installed"
     exit 1
 fi
 
-echo "
-✨ Setup complete! ✨
+# Check PostgreSQL
+if ! command -v psql &> /dev/null; then
+    echo "❌ PostgreSQL is required but not installed"
+    exit 1
+fi
 
-🌐 Frontend: http://localhost:3000
-🔧 Backend API: http://localhost:8000
-📚 API Docs: http://localhost:8000/docs
-🗄️  Qdrant: http://localhost:6333/dashboard
+echo "✓ All prerequisites found"
 
-📝 Next steps:
-1. Edit backend/.env and add your OPENAI_API_KEY
-2. Restart backend: docker-compose restart backend
-3. Visit http://localhost:3000 to get started!
+# Setup backend
+echo ""
+echo "🔧 Setting up backend..."
+cd backend
 
-🔍 View logs:
-   docker-compose logs -f
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
+fi
 
-🛑 Stop services:
-   docker-compose down
-"
+source venv/bin/activate
+pip install -r requirements.txt
+
+if [ ! -f ".env" ]; then
+    echo "Creating .env file..."
+    cp .env.example .env
+    
+    # Generate encryption key
+    ENCRYPTION_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+    SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+    
+    # Update .env file
+    sed -i "s/your-encryption-key-must-be-32-bytes-long/$ENCRYPTION_KEY/" .env
+    sed -i "s/your-secret-key-change-in-production-min-32-chars/$SECRET_KEY/" .env
+    
+    echo "⚠️  Please update the database URL and other settings in backend/.env"
+fi
+
+# Setup database
+echo ""
+echo "🗄️  Setting up database..."
+read -p "Database name (default: aura): " DB_NAME
+DB_NAME=${DB_NAME:-aura}
+
+read -p "Do you want to create the database? (y/n): " create_db
+if [ "$create_db" = "y" ]; then
+    createdb $DB_NAME 2>/dev/null || echo "Database might already exist"
+    psql $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS vector;"
+    psql $DB_NAME -f ../database/init.sql
+    echo "✓ Database initialized"
+fi
+
+# Setup frontend
+echo ""
+echo "🎨 Setting up frontend..."
+cd ../frontend
+
+npm install
+
+if [ ! -f ".env.local" ]; then
+    echo "Creating .env.local file..."
+    cp .env.example .env.local
+fi
+
+echo ""
+echo "✅ Setup complete!"
+echo ""
+echo "To start the application:"
+echo "1. Backend: cd backend && source venv/bin/activate && uvicorn app.main:app --reload"
+echo "2. Frontend: cd frontend && npm run dev"
+echo ""
+echo "📱 Frontend will be at: http://localhost:3000"
+echo "🔧 Backend API will be at: http://localhost:8000"
+echo "📚 API Docs will be at: http://localhost:8000/api/docs"
