@@ -28,7 +28,7 @@ export default function LoginPage() {
       useAuthStore.getState().setUser(userResponse.data)
       
       // Get organizations
-      const orgsResponse = await api.get('/organizations')
+      const orgsResponse = await api.get('/organizations/')
       useAuthStore.getState().setOrganizations(orgsResponse.data)
       
       if (orgsResponse.data.length > 0) {

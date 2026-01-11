@@ -34,6 +34,14 @@ export default function RegisterPage() {
       const userResponse = await api.get('/auth/me')
       useAuthStore.getState().setUser(userResponse.data)
       
+      // Get organizations
+      const orgsResponse = await api.get('/organizations/')
+      useAuthStore.getState().setOrganizations(orgsResponse.data)
+      
+      if (orgsResponse.data.length > 0) {
+        useAuthStore.getState().setCurrentOrg(orgsResponse.data[0])
+      }
+      
       router.push('/dashboard')
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed')
