@@ -10,7 +10,9 @@ from uuid import UUID
 
 from app.tools.gmail_tools import get_gmail_tools
 from app.tools.calendar_tools import get_calendar_tools
+from app.tools.jira_tools import get_jira_tools
 from app.services.oauth_service import get_oauth_token
+from app.models.credential import Credential
 
 
 class ToolRegistry:
@@ -45,9 +47,17 @@ class ToolRegistry:
         if calendar_token and calendar_token.is_active:
             tools.extend(get_calendar_tools(db, user_id, org_id))
         
+        # Check Jira connection (uses API key credential)
+        jira_cred = db.query(Credential).filter(
+            Credential.org_id == org_id,
+            Credential.credential_type == "jira",
+            Credential.is_active == True
+        ).first()
+        if jira_cred:
+            tools.extend(get_jira_tools(db, user_id, org_id))
+        
         # Future: Add more integrations
         # - Slack tools
-        # - Jira tools
         # - Notion tools
         
         return tools
@@ -80,6 +90,15 @@ class ToolRegistry:
             calendar_token = await get_oauth_token(db, user_id, org_id, "google")
             if calendar_token and calendar_token.is_active:
                 return get_calendar_tools(db, user_id, org_id)
+        
+        elif category.lower() == "jira":
+            jira_cred = db.query(Credential).filter(
+                Credential.org_id == org_id,
+                Credential.credential_type == "jira",
+                Credential.is_active == True
+            ).first()
+            if jira_cred:
+                return get_jira_tools(db, user_id, org_id)
         
         return []
     
@@ -121,11 +140,26 @@ class ToolRegistry:
                 {"name": "update_calendar_event", "description": "Update an existing calendar event"}
             ]
         
+        # Jira tools
+        jira_cred = db.query(Credential).filter(
+            Credential.org_id == org_id,
+            Credential.credential_type == "jira",
+            Credential.is_active == True
+        ).first()
+        if jira_cred:
+            descriptions["jira"] = [
+                {"name": "search_jira_issues", "description": "Search Jira issues using JQL"},
+                {"name": "get_jira_issue", "description": "Get detailed information about a Jira issue"},
+                {"name": "create_jira_issue", "description": "Create a new Jira issue"},
+                {"name": "update_jira_issue", "description": "Update an existing Jira issue"}
+            ]
+        
         return descriptions
 
 
 __all__ = [
     "ToolRegistry",
     "get_gmail_tools",
-    "get_calendar_tools"
+    "get_calendar_tools",
+    "get_jira_tools"
 ]

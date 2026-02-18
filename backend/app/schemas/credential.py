@@ -17,7 +17,7 @@ class CredentialCreate(BaseModel):
     
     @validator('credential_type')
     def validate_credential_type(cls, v):
-        valid_types = ['openai', 'anthropic', 'google_gemini', 'cohere', 'huggingface']
+        valid_types = ['openai', 'anthropic', 'google_gemini', 'cohere', 'huggingface', 'jira']
         if v not in valid_types:
             raise ValueError(f'Invalid credential type. Must be one of: {", ".join(valid_types)}')
         return v
