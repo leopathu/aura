@@ -6,6 +6,11 @@ interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at: string
+  metadata?: {
+    thought_trace?: any[]
+    tool_calls?: any[]
+    streaming?: boolean
+  }
 }
 
 interface MessageListProps {
@@ -19,7 +24,12 @@ export default function MessageList({ messages }: MessageListProps) {
         message.role === 'user' ? (
           <UserMessage key={message.id} content={message.content} timestamp={message.created_at} />
         ) : message.role === 'assistant' ? (
-          <AssistantMessage key={message.id} content={message.content} timestamp={message.created_at} />
+          <AssistantMessage 
+            key={message.id} 
+            content={message.content} 
+            timestamp={message.created_at}
+            metadata={message.metadata}
+          />
         ) : null
       ))}
     </div>

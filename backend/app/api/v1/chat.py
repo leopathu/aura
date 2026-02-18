@@ -23,6 +23,9 @@ from app.schemas.chat import (
 )
 from app.services import chat_service, agent_service, organization_service, llm_service
 from app.services.agent_orchestration import run_agent_graph, format_thought_trace
+from app.services.streaming_agent import stream_agent_execution
+from app.services.sse_service import SSEResponseGenerator, stream_with_heartbeat
+import uuid
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -128,7 +131,7 @@ async def stream_message(
     db: Session = Depends(get_db)
 ):
     """
-    Stream a chat message response using Server-Sent Events
+    Stream a chat message response using Server-Sent Events with agent orchestration
     """
     # Get agent and verify access
     agent = await agent_service.get_agent_by_id(db, chat_request.agent_id)
@@ -169,37 +172,99 @@ async def stream_message(
         )
     
     # Save user message
-    await chat_service.create_message(
+    user_message = await chat_service.create_message(
         db, conversation.id, "user", chat_request.message
     )
     
-    # Get conversation history
-    history = await chat_service.get_conversation_history(db, conversation.id)
+    # Generate connection ID
+    connection_id = str(uuid.uuid4())
     
     async def event_generator():
-        """Generate SSE events"""
-        # Send conversation_id first
-        yield f"data: {json.dumps({'conversation_id': str(conversation.id)})}\n\n"
-        
-        # Stream the response
-        full_response = ""
-        async for chunk in llm_service.generate_chat_response_stream(
-            messages=history,
-            system_prompt=agent.system_prompt
-        ):
-            full_response += chunk
-            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
-        
-        # Save assistant message after streaming completes
-        await chat_service.create_message(
-            db, conversation.id, "assistant", full_response
-        )
-        
-        yield "data: [DONE]\n\n"
+        """Generate SSE events from agent execution"""
+        try:
+            # Send initial data
+            yield f"data: {json.dumps({'conversation_id': str(conversation.id)})}\n\n"
+            
+            # Collect metadata for final message
+            final_response = ""
+            thought_trace = []
+            tool_calls = []
+            
+            # Stream agent execution with heartbeat
+            agent_stream = stream_agent_execution(
+                user_message=chat_request.message,
+                agent=agent,
+                db=db,
+                user_id=current_user.id,
+                org_id=agent.org_id
+            )
+            
+            # Generate SSE events with heartbeat
+            sse_generator = SSEResponseGenerator()
+            event_stream = sse_generator.generate_events(agent_stream)
+            heartbeat_stream = stream_with_heartbeat(event_stream, connection_id, interval=15)
+            
+            # Yield each SSE formatted event
+            async for sse_event in heartbeat_stream:
+                # Parse event to collect metadata (events are already formatted)
+                if '"event":"token"' in sse_event:
+                    # Extract token from SSE data
+                    try:
+                        data_start = sse_event.find('data: ') + 6
+                        data_end = sse_event.find('\n', data_start)
+                        data = json.loads(sse_event[data_start:data_end])
+                        final_response += data.get('token', '')
+                    except:
+                        pass
+                elif '"event":"thought"' in sse_event:
+                    try:
+                        data_start = sse_event.find('data: ') + 6
+                        data_end = sse_event.find('\n', data_start)
+                        data = json.loads(sse_event[data_start:data_end])
+                        thought_trace.append(data)
+                    except:
+                        pass
+                elif '"event":"tool_call"' in sse_event or '"event":"tool_result"' in sse_event:
+                    try:
+                        data_start = sse_event.find('data: ') + 6
+                        data_end = sse_event.find('\n', data_start)
+                        data = json.loads(sse_event[data_start:data_end])
+                        tool_calls.append(data)
+                    except:
+                        pass
+                
+                yield sse_event
+            
+            # Save assistant message after streaming completes
+            metadata = {
+                "thought_trace": thought_trace,
+                "tool_calls": tool_calls,
+                "streaming": True,
+                "connection_id": connection_id
+            }
+            
+            await chat_service.create_message(
+                db, conversation.id, "assistant", final_response, metadata
+            )
+            
+        except Exception as e:
+            # Send error event
+            error_data = {
+                "event": "error",
+                "data": {
+                    "message": str(e),
+                    "code": "STREAMING_ERROR"
+                }
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
     
     return StreamingResponse(
         event_generator(),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
     )
 
 

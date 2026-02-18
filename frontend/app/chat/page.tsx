@@ -7,12 +7,29 @@ import { useOrganizationStore } from '@/store/organizationStore'
 import MessageList from '@/components/chat/MessageList'
 import MessageInput from '@/components/chat/MessageInput'
 import ConversationSidebar from '@/components/chat/ConversationSidebar'
+import { 
+  SSEClient, 
+  createSSEClient,
+  ThoughtEvent,
+  ToolCallEvent,
+  ToolResultEvent,
+  TokenEvent,
+  CompletionEvent,
+  ErrorEvent,
+  StatusEvent,
+  ConnectionState
+} from '@/lib/sse-client'
 
 interface Message {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at: string
+  metadata?: {
+    thought_trace?: any[]
+    tool_calls?: any[]
+    streaming?: boolean
+  }
 }
 
 interface Conversation {
@@ -30,8 +47,14 @@ export default function ChatPage() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
+  const [currentThoughts, setCurrentThoughts] = useState<ThoughtEvent[]>([])
+  const [currentToolCalls, setCurrentToolCalls] = useState<(ToolCallEvent | ToolResultEvent)[]>([])
+  const [streamingContent, setStreamingContent] = useState('')
+  const [agentStatus, setAgentStatus] = useState<string>('')
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const sseClientRef = useRef<SSEClient | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -39,7 +62,16 @@ export default function ChatPage() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, streamingContent])
+
+  // Cleanup SSE connection on unmount
+  useEffect(() => {
+    return () => {
+      if (sseClientRef.current) {
+        sseClientRef.current.disconnect()
+      }
+    }
+  }, [])
 
   // Load conversations on mount
   useEffect(() => {
@@ -101,7 +133,13 @@ export default function ChatPage() {
     
     setIsLoading(true)
     
-    // Optimistic update
+    // Reset streaming state
+    setStreamingContent('')
+    setCurrentThoughts([])
+    setCurrentToolCalls([])
+    setAgentStatus('')
+    
+    // Optimistic update - add user message
     const tempMessage: Message = {
       id: 'temp-' + Date.now(),
       role: 'user',
@@ -112,76 +150,145 @@ export default function ChatPage() {
 
     try {
       const token = useAuthStore.getState().accessToken
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/chat/stream`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            agent_id: agentId,
-            message: content,
-            conversation_id: currentConversationId,
-            stream: true
-          })
-        }
-      )
+      
+      // Create SSE client
+      const streamUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/chat/stream`
+      
+      // Build request body
+      const requestBody = JSON.stringify({
+        agent_id: agentId,
+        message: content,
+        conversation_id: currentConversationId
+      })
+      
+      // Use fetch with POST to start streaming
+      const response = await fetch(streamUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: requestBody
+      })
 
       if (!response.ok) {
         throw new Error('Failed to send message')
       }
 
-      // Handle SSE streaming
+      // Handle SSE streaming manually (EventSource doesn't support POST)
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       
-      let assistantMessage = ''
-      let conversationId = currentConversationId
+      let buffer = ''
+      let newConversationId = currentConversationId
+      const thoughts: ThoughtEvent[] = []
+      const toolCalls: (ToolCallEvent | ToolResultEvent)[] = []
+      let fullResponse = ''
 
       while (true) {
         const { done, value } = await reader!.read()
         if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        
+        // Keep incomplete line in buffer
+        buffer = lines.pop() || ''
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6)
+            const data = line.slice(6).trim()
             
-            if (data === '[DONE]') {
-              break
-            }
+            if (!data || data === '[DONE]') continue
 
             try {
               const parsed = JSON.parse(data)
               
+              // Handle conversation_id
               if (parsed.conversation_id) {
-                conversationId = parsed.conversation_id
-                setCurrentConversationId(conversationId)
+                newConversationId = parsed.conversation_id
+                setCurrentConversationId(newConversationId)
+                continue
               }
               
-              if (parsed.chunk) {
-                assistantMessage += parsed.chunk
-                
-                // Update assistant message in real-time
-                setMessages((prev) => {
-                  const withoutTemp = prev.filter((m) => !m.id.startsWith('assistant-temp'))
-                  return [
-                    ...withoutTemp,
-                    {
-                      id: 'assistant-temp-' + Date.now(),
-                      role: 'assistant',
-                      content: assistantMessage,
-                      created_at: new Date().toISOString()
-                    }
-                  ]
-                })
+              // Route events
+              if (parsed.event) {
+                switch (parsed.event) {
+                  case 'thought':
+                    thoughts.push(parsed.data)
+                    setCurrentThoughts([...thoughts])
+                    break
+                    
+                  case 'tool_call':
+                  case 'tool_result':
+                    toolCalls.push(parsed.data)
+                    setCurrentToolCalls([...toolCalls])
+                    break
+                    
+                  case 'token':
+                    fullResponse += parsed.data.token
+                    setStreamingContent(fullResponse)
+                    
+                    // Update assistant message in real-time
+                    setMessages((prev) => {
+                      const withoutTemp = prev.filter((m) => !m.id.startsWith('assistant-temp'))
+                      return [
+                        ...withoutTemp,
+                        {
+                          id: 'assistant-temp',
+                          role: 'assistant',
+                          content: fullResponse,
+                          created_at: new Date().toISOString(),
+                          metadata: {
+                            thought_trace: thoughts,
+                            tool_calls: toolCalls,
+                            streaming: true
+                          }
+                        }
+                      ]
+                    })
+                    break
+                    
+                  case 'completion':
+                    // Final response with metadata
+                    fullResponse = parsed.data.final_response
+                    setMessages((prev) => {
+                      const withoutTemp = prev.filter((m) => !m.id.startsWith('assistant-temp') && !m.id.startsWith('temp-'))
+                      return [
+                        ...withoutTemp,
+                        {
+                          id: 'user-' + Date.now(),
+                          role: 'user',
+                          content,
+                          created_at: new Date().toISOString()
+                        },
+                        {
+                          id: 'assistant-' + Date.now(),
+                          role: 'assistant',
+                          content: fullResponse,
+                          created_at: new Date().toISOString(),
+                          metadata: parsed.data.metadata
+                        }
+                      ]
+                    })
+                    break
+                    
+                  case 'status':
+                    setAgentStatus(parsed.data.status)
+                    break
+                    
+                  case 'error':
+                    console.error('Agent error:', parsed.data.message)
+                    setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')))
+                    break
+                    
+                  case 'heartbeat':
+                    // Ignore heartbeats
+                    break
+                }
               }
             } catch (e) {
-              // Ignore parse errors
+              console.error('Failed to parse SSE event:', e)
             }
           }
         }
@@ -189,6 +296,12 @@ export default function ChatPage() {
 
       // Reload conversations to update sidebar
       loadConversations()
+      
+      // Reset streaming state
+      setStreamingContent('')
+      setCurrentThoughts([])
+      setCurrentToolCalls([])
+      setAgentStatus('')
       
     } catch (error) {
       console.error('Failed to send message:', error)
