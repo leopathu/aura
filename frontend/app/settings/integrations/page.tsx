@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import GoogleOAuthButton from '@/components/oauth/GoogleOAuthButton'
 import GmailIntegrationCard from '@/components/integrations/GmailIntegrationCard'
+import CalendarIntegrationCard from '@/components/integrations/CalendarIntegrationCard'
 
 interface OAuthConnection {
   provider: string
@@ -145,6 +146,15 @@ export default function IntegrationsPage() {
                 onDisconnect={() => handleDisconnect('google')}
               />
 
+              {/* Calendar Integration Card */}
+              <CalendarIntegrationCard
+                isConnected={googleConnection?.is_connected || false}
+                scope={googleConnection?.scope}
+                orgId={currentOrganization?.id || ''}
+                onConnect={handleGoogleConnect}
+                onDisconnect={() => handleDisconnect('google')}
+              />
+
               {/* Placeholder for future integrations */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 opacity-50">
                 <div className="flex items-start gap-4 mb-4">
@@ -155,7 +165,7 @@ export default function IntegrationsPage() {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">More Coming Soon</h3>
-                    <p className="text-sm text-gray-600">Calendar, Slack, Jira, Notion</p>
+                    <p className="text-sm text-gray-600">Slack, Jira, Notion</p>
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">

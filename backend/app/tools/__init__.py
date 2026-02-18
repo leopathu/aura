@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.tools.gmail_tools import get_gmail_tools
+from app.tools.calendar_tools import get_calendar_tools
 from app.services.oauth_service import get_oauth_token
 
 
@@ -39,8 +40,12 @@ class ToolRegistry:
         if gmail_token and gmail_token.is_active:
             tools.extend(get_gmail_tools(db, user_id, org_id))
         
+        # Check Calendar connection (uses same Google OAuth token)
+        calendar_token = await get_oauth_token(db, user_id, org_id, "google")
+        if calendar_token and calendar_token.is_active:
+            tools.extend(get_calendar_tools(db, user_id, org_id))
+        
         # Future: Add more integrations
-        # - Google Calendar tools
         # - Slack tools
         # - Jira tools
         # - Notion tools
@@ -70,6 +75,11 @@ class ToolRegistry:
             gmail_token = await get_oauth_token(db, user_id, org_id, "google")
             if gmail_token and gmail_token.is_active:
                 return get_gmail_tools(db, user_id, org_id)
+        
+        elif category.lower() == "calendar":
+            calendar_token = await get_oauth_token(db, user_id, org_id, "google")
+            if calendar_token and calendar_token.is_active:
+                return get_calendar_tools(db, user_id, org_id)
         
         return []
     
@@ -102,10 +112,20 @@ class ToolRegistry:
                 {"name": "search_emails", "description": "Search emails using Gmail search queries"}
             ]
         
+        # Calendar tools
+        calendar_token = await get_oauth_token(db, user_id, org_id, "google")
+        if calendar_token and calendar_token.is_active:
+            descriptions["calendar"] = [
+                {"name": "list_calendar_events", "description": "List upcoming calendar events"},
+                {"name": "create_calendar_event", "description": "Create a new calendar event"},
+                {"name": "update_calendar_event", "description": "Update an existing calendar event"}
+            ]
+        
         return descriptions
 
 
 __all__ = [
     "ToolRegistry",
-    "get_gmail_tools"
+    "get_gmail_tools",
+    "get_calendar_tools"
 ]
