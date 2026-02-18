@@ -584,30 +584,30 @@
 ### 5.1 Testing & Quality Assurance
 
 #### Backend Testing
-- ⏳ **TASK-369:** Write unit tests for auth service
-- ⏳ **TASK-370:** Write unit tests for encryption service
-- ⏳ **TASK-371:** Write integration tests for auth endpoints
-- ⏳ **TASK-372:** Write integration tests for chat endpoints
-- ⏳ **TASK-373:** Write integration tests for app integrations
-- ⏳ **TASK-374:** Add test coverage reporting
-- ⏳ **TASK-375:** Set up test database
+- ✅ **TASK-369:** Write unit tests for auth service
+- ✅ **TASK-370:** Write unit tests for encryption service
+- ✅ **TASK-371:** Write integration tests for auth endpoints
+- ✅ **TASK-372:** Write integration tests for chat endpoints
+- ✅ **TASK-373:** Write integration tests for app integrations
+- ✅ **TASK-374:** Add test coverage reporting
+- ✅ **TASK-375:** Set up test database
 
 #### Frontend Testing
-- ⏳ **TASK-376:** Write component tests for auth pages
-- ⏳ **TASK-377:** Write component tests for chat interface
-- ⏳ **TASK-378:** Write E2E test for user registration
-- ⏳ **TASK-379:** Write E2E test for agent creation
-- ⏳ **TASK-380:** Write E2E test for app connection
-- ⏳ **TASK-381:** Add accessibility tests
-- ⏳ **TASK-382:** Add visual regression tests
+- ✅ **TASK-376:** Write component tests for auth pages
+- ✅ **TASK-377:** Write component tests for chat interface
+- ✅ **TASK-378:** Write E2E test for user registration
+- ✅ **TASK-379:** Write E2E test for agent creation
+- ✅ **TASK-380:** Write E2E test for app connection
+- ✅ **TASK-381:** Add accessibility tests
+- ✅ **TASK-382:** Add visual regression tests
 
 #### Performance Testing
-- ⏳ **TASK-383:** Load test chat endpoints
-- ⏳ **TASK-384:** Test database query performance
-- ⏳ **TASK-385:** Test SSE connection scalability
-- ⏳ **TASK-386:** Optimize slow queries
-- ⏳ **TASK-387:** Add database indexes
-- ⏳ **TASK-388:** Add caching layer
+- ✅ **TASK-383:** Load test chat endpoints
+- ✅ **TASK-384:** Test database query performance
+- ✅ **TASK-385:** Test SSE connection scalability
+- ✅ **TASK-386:** Optimize slow queries
+- ✅ **TASK-387:** Add database indexes
+- ✅ **TASK-388:** Add caching layer
 
 ---
 
