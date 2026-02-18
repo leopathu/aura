@@ -6,21 +6,22 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism'
+import ThoughtTrace, { ThoughtStep } from './ThoughtTrace'
+import { ToolCallList } from './ToolCallCard'
+import type { ToolCall } from './ToolCallCard'
 
 interface AssistantMessageProps {
   content: string
   timestamp: string
   metadata?: {
-    thought_trace?: any[]
-    tool_calls?: any[]
+    thought_trace?: ThoughtStep[]
+    tool_calls?: ToolCall[]
     streaming?: boolean
   }
 }
 
 export default function AssistantMessage({ content, timestamp, metadata }: AssistantMessageProps) {
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
-  const [showThoughts, setShowThoughts] = useState(false)
-  const [showTools, setShowTools] = useState(false)
 
   const copyToClipboard = (code: string, language: string) => {
     navigator.clipboard.writeText(code)
@@ -28,115 +29,23 @@ export default function AssistantMessage({ content, timestamp, metadata }: Assis
     setTimeout(() => setCopiedCode(null), 2000)
   }
 
-  const hasThoughts = metadata?.thought_trace && metadata.thought_trace.length > 0
-  const hasTools = metadata?.tool_calls && metadata.tool_calls.length > 0
-
   return (
     <div className="flex justify-start">
-      <div className="flex items-start gap-3 max-w-2xl">
+      <div className="flex items-start gap-3 max-w-3xl w-full">
         <div className="flex-shrink-0">
           <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
             AI
           </div>
         </div>
-        <div className="flex-1">
-          {/* Thought Trace */}
-          {hasThoughts && (
-            <div className="mb-2">
-              <button
-                onClick={() => setShowThoughts(!showThoughts)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <svg 
-                  className={`h-4 w-4 transition-transform ${showThoughts ? 'rotate-90' : ''}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                </svg>
-                <span className="font-medium">Thought Process ({metadata.thought_trace?.length})</span>
-              </button>
-              
-              {showThoughts && (
-                <div className="mt-2 space-y-2">
-                  {metadata.thought_trace?.map((thought: any, idx: number) => (
-                    <div key={idx} className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-purple-700 uppercase">
-                          {thought.node || `Step ${thought.step}`}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          thought.status === 'completed' 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {thought.status}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-700">{thought.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="flex-1 min-w-0">
+          {/* Thought Trace Component */}
+          {metadata?.thought_trace && metadata.thought_trace.length > 0 && (
+            <ThoughtTrace steps={metadata.thought_trace} className="mb-3" />
           )}
 
-          {/* Tool Calls */}
-          {hasTools && (
-            <div className="mb-2">
-              <button
-                onClick={() => setShowTools(!showTools)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <svg 
-                  className={`h-4 w-4 transition-transform ${showTools ? 'rotate-90' : ''}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                </svg>
-                <span className="font-medium">Tool Calls ({metadata.tool_calls?.length})</span>
-              </button>
-              
-              {showTools && (
-                <div className="mt-2 space-y-2">
-                  {metadata.tool_calls?.map((tool: any, idx: number) => (
-                    <div key={idx} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-blue-700">
-                          {tool.tool_name}
-                        </span>
-                        {tool.duration_ms && (
-                          <span className="text-xs text-gray-500">
-                            {tool.duration_ms}ms
-                          </span>
-                        )}
-                      </div>
-                      {tool.arguments && (
-                        <pre className="text-xs bg-white border border-blue-100 rounded p-2 mt-1 overflow-x-auto">
-                          {JSON.stringify(tool.arguments, null, 2)}
-                        </pre>
-                      )}
-                      {tool.result && (
-                        <div className="mt-2">
-                          <span className="text-xs font-medium text-gray-600">Result:</span>
-                          <pre className="text-xs bg-white border border-blue-100 rounded p-2 mt-1 overflow-x-auto">
-                            {typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                      {tool.error && (
-                        <div className="mt-2 text-xs text-red-600">
-                          Error: {tool.error}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Tool Calls Component */}
+          {metadata?.tool_calls && metadata.tool_calls.length > 0 && (
+            <ToolCallList toolCalls={metadata.tool_calls} className="mb-3" />
           )}
 
           {/* Main Message */}
