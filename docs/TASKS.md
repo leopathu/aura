@@ -547,35 +547,35 @@
 ### 4.3 Automation UI
 
 #### Frontend - Automation List
-- ⏳ **TASK-346:** Create automations page (`/automations`)
-- ⏳ **TASK-347:** Create automation card component
-- ⏳ **TASK-348:** Add enable/disable toggle
-- ⏳ **TASK-349:** Show last run status
-- ⏳ **TASK-350:** Add automation deletion
+- ✅ **TASK-346:** Create automations page (`/automations`)
+- ✅ **TASK-347:** Create automation card component
+- ✅ **TASK-348:** Add enable/disable toggle
+- ✅ **TASK-349:** Show last run status
+- ✅ **TASK-350:** Add automation deletion
 
 #### Frontend - Automation Builder
-- ⏳ **TASK-351:** Create automation creation page
-- ⏳ **TASK-352:** Create workflow step editor
-- ⏳ **TASK-353:** Add trigger selection UI
-- ⏳ **TASK-354:** Add schedule configuration UI
-- ⏳ **TASK-355:** Create action selector
-- ⏳ **TASK-356:** Add condition builder
-- ⏳ **TASK-357:** Create workflow preview
-- ⏳ **TASK-358:** Add workflow validation
+- ✅ **TASK-351:** Create automation creation page
+- ✅ **TASK-352:** Create workflow step editor
+- ✅ **TASK-353:** Add trigger selection UI
+- ✅ **TASK-354:** Add schedule configuration UI
+- ✅ **TASK-355:** Create action selector
+- ✅ **TASK-356:** Add condition builder
+- ✅ **TASK-357:** Create workflow preview
+- ✅ **TASK-358:** Add workflow validation
 
 #### Frontend - Template Library
-- ⏳ **TASK-359:** Create template gallery page
-- ⏳ **TASK-360:** Add pre-built templates (daily standup, etc.)
-- ⏳ **TASK-361:** Create template preview
-- ⏳ **TASK-362:** Add "Use Template" button
+- ✅ **TASK-359:** Create template gallery page
+- ✅ **TASK-360:** Add pre-built templates (daily standup, etc.)
+- ✅ **TASK-361:** Create template preview
+- ✅ **TASK-362:** Add "Use Template" button
 - ⏳ **TASK-363:** Create custom template saving
 
 #### Frontend - Run History
-- ⏳ **TASK-364:** Create automation run history page
-- ⏳ **TASK-365:** Create run timeline component
-- ⏳ **TASK-366:** Show run details (logs, errors)
-- ⏳ **TASK-367:** Add run filtering
-- ⏳ **TASK-368:** Create run retry button
+- ✅ **TASK-364:** Create automation run history page
+- ✅ **TASK-365:** Create run timeline component
+- ✅ **TASK-366:** Show run details (logs, errors)
+- ✅ **TASK-367:** Add run filtering
+- ✅ **TASK-368:** Create run retry button
 
 ---
 
