@@ -1,0 +1,159 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aura_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aura_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aura_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aura_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aura_user} -d ${POSTGRES_DB:-aura_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aura-network
+
+  # Redis for task queue and caching
+  redis:
+    image: redis:7-alpine
+    container_name: aura_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - aura-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aura_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aura_user}:${POSTGRES_PASSWORD:-aura_password}@postgres:5432/${POSTGRES_DB:-aura_db}
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - PORT=8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aura-network
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: base
+    container_name: aura_frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8001
+      - NODE_ENV=development
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - aura-network
+    command: npm run dev
+
+  # Celery Worker (for background tasks)
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aura_celery_worker
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aura_user}:${POSTGRES_PASSWORD:-aura_password}@postgres:5432/${POSTGRES_DB:-aura_db}
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aura-network
+    command: celery -A app.services.celery_app worker --loglevel=info
+    profiles:
+      - automation
+
+  # Celery Beat (for scheduled tasks)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aura_celery_beat
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-aura_user}:${POSTGRES_PASSWORD:-aura_password}@postgres:5432/${POSTGRES_DB:-aura_db}
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aura-network
+    command: celery -A app.services.celery_app beat --loglevel=info
+    profiles:
+      - automation
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  aura-network:
+    driver: bridge
