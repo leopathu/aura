@@ -60,6 +60,9 @@ pytz==2023.3
 httpx==0.26.0
 sse-starlette==1.8.2
 
-# Task Queue (for future automation)
+# Task Queue (for automation)
 redis==5.0.1
 celery==5.3.4
+croniter==2.0.1
+cron-descriptor==1.4.0
+aiohttp==3.9.1

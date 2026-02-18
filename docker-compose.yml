@@ -116,7 +116,7 @@ services:
         condition: service_healthy
     networks:
       - aura-network
-    command: celery -A app.services.celery_app worker --loglevel=info
+    command: celery -A app.celery_config:celery_app worker --loglevel=info --concurrency=4 --queues=default,automations,workflows
     profiles:
       - automation
 
@@ -142,7 +142,7 @@ services:
         condition: service_healthy
     networks:
       - aura-network
-    command: celery -A app.services.celery_app beat --loglevel=info
+    command: celery -A app.celery_config:celery_app beat --loglevel=info
     profiles:
       - automation
 
