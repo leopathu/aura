@@ -12,6 +12,7 @@ import json
 
 from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
+from app.models.agent import Agent
 from app.schemas.chat import (
     ChatRequest,
     ChatResponse,
@@ -21,6 +22,7 @@ from app.schemas.chat import (
     ConversationWithMessages
 )
 from app.services import chat_service, agent_service, organization_service, llm_service
+from app.services.agent_orchestration import run_agent_graph, format_thought_trace
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -80,19 +82,32 @@ async def send_message(
         db, conversation.id, "user", chat_request.message
     )
     
-    # Get conversation history
-    history = await chat_service.get_conversation_history(db, conversation.id)
-    
-    # Generate AI response
-    response_text = await llm_service.generate_chat_response(
-        messages=history,
-        system_prompt=agent.system_prompt,
-        stream=False
+    # Run agent orchestration with full state machine
+    agent_state = await run_agent_graph(
+        user_message=chat_request.message,
+        agent=agent,
+        db=db,
+        user_id=current_user.id,
+        org_id=agent.org_id
     )
     
-    # Save assistant message
+    # Extract response
+    response_text = agent_state.get("final_response", "I apologize, but I couldn't generate a response.")
+    
+    # Get thought trace for debugging/transparency
+    thought_trace = format_thought_trace(agent_state.get("thought_trace", []))
+    
+    # Save assistant message with metadata
     assistant_message = await chat_service.create_message(
-        db, conversation.id, "assistant", response_text
+        db,
+        conversation.id,
+        "assistant",
+        response_text,
+        metadata={
+            "thought_trace": agent_state.get("thought_trace", []),
+            "tool_calls": agent_state.get("tool_calls", []),
+            "iteration_count": agent_state.get("iteration_count", 0)
+        }
     )
     
     return ChatResponse(
