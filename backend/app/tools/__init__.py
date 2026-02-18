@@ -12,6 +12,7 @@ from app.tools.gmail_tools import get_gmail_tools
 from app.tools.calendar_tools import get_calendar_tools
 from app.tools.jira_tools import get_jira_tools
 from app.tools.slack_tools import get_slack_tools
+from app.tools.mcp_tools import get_mcp_tools
 from app.services.oauth_service import get_oauth_token
 from app.models.credential import Credential
 
@@ -62,6 +63,10 @@ class ToolRegistry:
         if slack_token and slack_token.is_active:
             tools.extend(get_slack_tools(db, user_id, org_id))
         
+        # Load MCP tools from all registered servers
+        mcp_tools = await get_mcp_tools(db, user_id, org_id)
+        tools.extend(mcp_tools)
+        
         return tools
     
     @staticmethod
@@ -106,6 +111,9 @@ class ToolRegistry:
             slack_token = await get_oauth_token(db, user_id, org_id, "slack")
             if slack_token and slack_token.is_active:
                 return get_slack_tools(db, user_id, org_id)
+        
+        elif category.lower() == "mcp":
+            return await get_mcp_tools(db, user_id, org_id)
         
         return []
     
@@ -170,6 +178,16 @@ class ToolRegistry:
                 {"name": "list_slack_channels", "description": "List all available Slack channels"}
             ]
         
+        # MCP tools (dynamically loaded from registered servers)
+        from app.tools.mcp_tools import get_mcp_tool_registry
+        mcp_registry = get_mcp_tool_registry()
+        mcp_tool_list = mcp_registry.list_tools()
+        if mcp_tool_list:
+            descriptions["mcp"] = [
+                {"name": tool["name"], "description": tool["description"]}
+                for tool in mcp_tool_list
+            ]
+        
         return descriptions
 
 
@@ -178,5 +196,6 @@ __all__ = [
     "get_gmail_tools",
     "get_calendar_tools",
     "get_jira_tools",
-    "get_slack_tools"
+    "get_slack_tools",
+    "get_mcp_tools"
 ]
