@@ -8,6 +8,7 @@ import GoogleOAuthButton from '@/components/oauth/GoogleOAuthButton'
 import GmailIntegrationCard from '@/components/integrations/GmailIntegrationCard'
 import CalendarIntegrationCard from '@/components/integrations/CalendarIntegrationCard'
 import JiraIntegrationCard from '@/components/integrations/JiraIntegrationCard'
+import SlackIntegrationCard from '@/components/integrations/SlackIntegrationCard'
 
 interface OAuthConnection {
   provider: string
@@ -162,6 +163,9 @@ export default function IntegrationsPage() {
                 onRefresh={loadConnections}
               />
 
+              {/* Slack Integration Card */}
+              <SlackIntegrationCard />
+
               {/* Placeholder for future integrations */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 opacity-50">
                 <div className="flex items-start gap-4 mb-4">
@@ -172,7 +176,7 @@ export default function IntegrationsPage() {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">More Coming Soon</h3>
-                    <p className="text-sm text-gray-600">Slack, Notion</p>
+                    <p className="text-sm text-gray-600">Notion, Trello, and more</p>
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">

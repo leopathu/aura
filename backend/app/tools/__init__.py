@@ -11,6 +11,7 @@ from uuid import UUID
 from app.tools.gmail_tools import get_gmail_tools
 from app.tools.calendar_tools import get_calendar_tools
 from app.tools.jira_tools import get_jira_tools
+from app.tools.slack_tools import get_slack_tools
 from app.services.oauth_service import get_oauth_token
 from app.models.credential import Credential
 
@@ -56,9 +57,10 @@ class ToolRegistry:
         if jira_cred:
             tools.extend(get_jira_tools(db, user_id, org_id))
         
-        # Future: Add more integrations
-        # - Slack tools
-        # - Notion tools
+        # Check Slack connection (uses OAuth token)
+        slack_token = await get_oauth_token(db, user_id, org_id, "slack")
+        if slack_token and slack_token.is_active:
+            tools.extend(get_slack_tools(db, user_id, org_id))
         
         return tools
     
@@ -99,6 +101,11 @@ class ToolRegistry:
             ).first()
             if jira_cred:
                 return get_jira_tools(db, user_id, org_id)
+        
+        elif category.lower() == "slack":
+            slack_token = await get_oauth_token(db, user_id, org_id, "slack")
+            if slack_token and slack_token.is_active:
+                return get_slack_tools(db, user_id, org_id)
         
         return []
     
@@ -154,6 +161,15 @@ class ToolRegistry:
                 {"name": "update_jira_issue", "description": "Update an existing Jira issue"}
             ]
         
+        # Slack tools
+        slack_token = await get_oauth_token(db, user_id, org_id, "slack")
+        if slack_token and slack_token.is_active:
+            descriptions["slack"] = [
+                {"name": "send_slack_message", "description": "Send a message to a Slack channel or thread"},
+                {"name": "read_slack_messages", "description": "Read message history from a Slack channel"},
+                {"name": "list_slack_channels", "description": "List all available Slack channels"}
+            ]
+        
         return descriptions
 
 
@@ -161,5 +177,6 @@ __all__ = [
     "ToolRegistry",
     "get_gmail_tools",
     "get_calendar_tools",
-    "get_jira_tools"
+    "get_jira_tools",
+    "get_slack_tools"
 ]

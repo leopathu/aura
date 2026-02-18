@@ -4,7 +4,7 @@ Combines all endpoint routers
 """
 
 from fastapi import APIRouter
-from app.api.v1 import auth, users, organizations, agents, chat, credentials, oauth, tools
+from app.api.v1 import auth, users, organizations, agents, chat, credentials, oauth, tools, integrations
 
 api_router = APIRouter()
 
@@ -17,6 +17,7 @@ api_router.include_router(chat.router)
 api_router.include_router(credentials.router)
 api_router.include_router(oauth.router)
 api_router.include_router(tools.router)
+api_router.include_router(integrations.router)
 
 @api_router.get("/")
 async def api_root():

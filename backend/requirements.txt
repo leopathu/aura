@@ -46,6 +46,9 @@ google-auth-httplib2==0.2.0
 # Jira API
 jira==3.6.0
 
+# Slack SDK
+slack-sdk==3.26.0
+
 # Date/Time parsing
 python-dateutil==2.8.2
 pytz==2023.3

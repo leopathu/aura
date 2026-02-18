@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     
     SLACK_CLIENT_ID: str = ""
     SLACK_CLIENT_SECRET: str = ""
+    SLACK_REDIRECT_URI: str = "http://localhost:8001/api/v1/auth/callback/slack"
     
     # Redis (for task queue)
     REDIS_HOST: str = "redis"
