@@ -41,7 +41,7 @@ class Message(Base):
     conversation_id = Column(UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(String(50), nullable=False)  # 'user', 'assistant', 'system'
     content = Column(Text, nullable=False)
-    metadata = Column(JSONB, default={}, nullable=False)
+    message_metadata = Column(JSONB, default={}, nullable=False)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     def __repr__(self):

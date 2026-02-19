@@ -73,7 +73,7 @@ class MemberResponse(BaseModel):
 
 class MemberInvite(BaseModel):
     """Schema for inviting a member"""
-    email: str = Field(..., regex=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    email: str = Field(..., pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
     role: str = Field(default='member')
     
     @validator('role')

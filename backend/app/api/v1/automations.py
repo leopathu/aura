@@ -19,7 +19,7 @@ from datetime import datetime
 import uuid
 import json
 
-from app.database import get_db
+from app.db.session import get_db
 from app.models.user import User
 from app.models.automation import (
     Automation, 

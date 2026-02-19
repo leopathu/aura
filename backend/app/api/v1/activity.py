@@ -16,9 +16,9 @@ from uuid import UUID
 import csv
 import io
 
-from app.database import get_db
+from app.db.session import get_db
 from app.models.user import User
-from app.services.auth_service import get_current_user
+from app.core.dependencies import get_current_user
 from app.services import activity_service
 from pydantic import BaseModel
 
@@ -154,7 +154,7 @@ async def get_activity_statistics(
 
 @router.get("/export")
 async def export_activity_logs(
-    format: str = Query("json", regex="^(json|csv)$"),
+    format: str = Query("json", pattern="^(json|csv)$"),
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     action_types: Optional[str] = Query(None),

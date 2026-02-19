@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 import enum
 
-from app.database import Base
+from app.db.session import Base
 
 
 class TriggerType(str, enum.Enum):

@@ -35,7 +35,7 @@ class UniversalMCPTool(BaseTool):
     description: str
     server_name: str
     tool_name: str
-    input_schema: Dict[str, Any]
+    mcp_input_schema: Dict[str, Any]  # Renamed from input_schema to avoid Pydantic conflict
     args_schema: Type[BaseModel] = UniversalMCPToolInput
     
     def __init__(
@@ -43,7 +43,7 @@ class UniversalMCPTool(BaseTool):
         server_name: str,
         tool_name: str,
         tool_description: str,
-        input_schema: Dict[str, Any],
+        mcp_input_schema: Dict[str, Any],
         **kwargs
     ):
         """
@@ -53,12 +53,12 @@ class UniversalMCPTool(BaseTool):
             server_name: MCP server name
             tool_name: Tool name on the server
             tool_description: Tool description
-            input_schema: JSON schema for tool inputs
+            mcp_input_schema: JSON schema for tool inputs
         """
         # Create a dynamic Pydantic model from the input schema
         dynamic_model = create_dynamic_model_from_schema(
             f"{tool_name}Input",
-            input_schema
+            mcp_input_schema
         )
         
         super().__init__(
@@ -66,7 +66,7 @@ class UniversalMCPTool(BaseTool):
             description=tool_description,
             server_name=server_name,
             tool_name=tool_name,
-            input_schema=input_schema,
+            mcp_input_schema=mcp_input_schema,
             args_schema=dynamic_model,
             **kwargs
         )
@@ -207,7 +207,7 @@ class MCPToolRegistry:
                     server_name=server_name,
                     tool_name=tool_def["name"],
                     tool_description=tool_def["description"],
-                    input_schema=tool_def["input_schema"]
+                    mcp_input_schema=tool_def["input_schema"]
                 )
                 
                 # Store in registry

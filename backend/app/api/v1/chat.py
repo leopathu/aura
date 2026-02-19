@@ -118,7 +118,7 @@ async def send_message(
         message=ChatMessage(
             role=assistant_message.role,
             content=assistant_message.content,
-            metadata=assistant_message.metadata
+            metadata=assistant_message.message_metadata
         ),
         created_at=assistant_message.created_at
     )

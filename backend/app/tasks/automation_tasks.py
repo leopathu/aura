@@ -10,7 +10,7 @@ from uuid import UUID
 from typing import Dict, Any
 
 from app.celery_config import celery_app, BaseTask
-from app.database import SessionLocal
+from app.db.session import SessionLocal
 from app.models.automation import Automation, AutomationRun, RunStatus, AutomationStatus
 from app.services.workflow_executor import WorkflowExecutor
 

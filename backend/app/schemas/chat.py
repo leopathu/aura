@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 
 class ChatMessage(BaseModel):
     """Schema for a chat message"""
-    role: str = Field(..., regex='^(user|assistant|system)$')
+    role: str = Field(..., pattern='^(user|assistant|system)$')
     content: str = Field(..., min_length=1)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
