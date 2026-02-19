@@ -2,9 +2,15 @@
 # Next.js 14 with TypeScript
 
 FROM node:20-alpine AS base
+WORKDIR /app
 
-# Install dependencies only when needed
-FROM base AS deps
+# Development mode uses host node_modules via volume mount
+# This keeps hot-reload working properly
+
+CMD ["npm", "run", "dev"]
+
+# Production stages below...
+FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
