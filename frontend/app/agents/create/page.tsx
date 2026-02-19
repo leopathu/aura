@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import DashboardLayout from '@/components/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import AgentForm from '@/components/agents/AgentForm'
@@ -53,11 +53,10 @@ export default function CreateAgentPage() {
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
+    <DashboardLayout>
+      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Create AI Agent</h1>
             <p className="mt-2 text-gray-600">
               Configure a new AI assistant for your organization
@@ -76,10 +75,9 @@ export default function CreateAgentPage() {
             </div>
           )}
 
-          {/* Form */}
-          <AgentForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
-        </div>
+        {/* Form */}
+        <AgentForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
       </div>
-    </ProtectedRoute>
+    </DashboardLayout>
   )
 }

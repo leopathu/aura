@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import DashboardLayout from '@/components/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import GoogleOAuthButton from '@/components/oauth/GoogleOAuthButton'
@@ -116,19 +116,18 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
-            <p className="mt-2 text-gray-600">
-              Connect your favorite apps and services to use with AI agents
-            </p>
-          </div>
+    <DashboardLayout>
+      <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
+          <p className="mt-2 text-gray-600">
+            Connect your favorite apps and services to use with AI agents
+          </p>
+        </div>
 
-          {/* Integration Cards */}
-          {isLoading ? (
+        {/* Integration Cards */}
+        {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[1, 2].map((i) => (
                 <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 animate-pulse">
@@ -179,14 +178,10 @@ export default function IntegrationsPage() {
                     <p className="text-sm text-gray-600">Notion, Trello, and more</p>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600">
-                  Additional integrations will be available soon.
-                </p>
               </div>
             </div>
           )}
-        </div>
       </div>
-    </ProtectedRoute>
+    </DashboardLayout>
   )
 }

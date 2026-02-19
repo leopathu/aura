@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import DashboardLayout from '@/components/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import AgentForm from '@/components/agents/AgentForm'
 
@@ -95,18 +95,18 @@ export default function AgentDetailPage() {
 
   if (isLoading) {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600" />
         </div>
-      </ProtectedRoute>
+      </DashboardLayout>
     )
   }
 
   if (error && !agent) {
     return (
-      <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <h2 className="text-2xl font-semibold text-gray-900 mb-2">{error}</h2>
             <button
@@ -117,16 +117,15 @@ export default function AgentDetailPage() {
             </button>
           </div>
         </div>
-      </ProtectedRoute>
+      </DashboardLayout>
     )
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8">
+    <DashboardLayout>
+      <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Edit Agent</h1>
             <p className="mt-2 text-gray-600">
               Update your AI assistant configuration
@@ -154,7 +153,6 @@ export default function AgentDetailPage() {
             />
           )}
         </div>
-      </div>
-    </ProtectedRoute>
-  )
-}
+      </DashboardLayout>
+    )
+  }

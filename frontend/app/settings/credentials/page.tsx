@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import DashboardLayout from '@/components/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import AddCredentialModal from '@/components/credentials/AddCredentialModal'
@@ -204,11 +204,10 @@ export default function CredentialsPage() {
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-8 flex items-start justify-between">
+    <DashboardLayout>
+      <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8 flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">LLM Credentials</h1>
               <p className="mt-2 text-gray-600">
@@ -330,29 +329,28 @@ export default function CredentialsPage() {
               ))}
             </div>
           )}
-        </div>
+
+        {/* Modals */}
+        {showAddModal && (
+          <AddCredentialModal onClose={() => setShowAddModal(false)} onSubmit={handleAddCredential} />
+        )}
+
+        {editingCredential && (
+          <EditCredentialModal
+            credential={editingCredential}
+            onClose={() => setEditingCredential(null)}
+            onSubmit={(label) => handleUpdateCredential(editingCredential.id, label)}
+          />
+        )}
+
+        {deletingCredential && (
+          <DeleteCredentialModal
+            credential={deletingCredential}
+            onClose={() => setDeletingCredential(null)}
+            onConfirm={() => handleDeleteCredential(deletingCredential.id)}
+          />
+        )}
       </div>
-
-      {/* Modals */}
-      {showAddModal && (
-        <AddCredentialModal onClose={() => setShowAddModal(false)} onSubmit={handleAddCredential} />
-      )}
-
-      {editingCredential && (
-        <EditCredentialModal
-          credential={editingCredential}
-          onClose={() => setEditingCredential(null)}
-          onSubmit={(label) => handleUpdateCredential(editingCredential.id, label)}
-        />
-      )}
-
-      {deletingCredential && (
-        <DeleteCredentialModal
-          credential={deletingCredential}
-          onClose={() => setDeletingCredential(null)}
-          onConfirm={() => handleDeleteCredential(deletingCredential.id)}
-        />
-      )}
-    </ProtectedRoute>
+    </DashboardLayout>
   )
 }
