@@ -28,7 +28,7 @@ from app.models.automation import (
     AutomationStatus,
     RunStatus
 )
-from app.auth import get_current_user
+from app.core.dependencies import get_current_user
 from app.services.schedule_service import (
     calculate_next_run,
     validate_cron_expression,

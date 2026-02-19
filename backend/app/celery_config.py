@@ -11,11 +11,11 @@ TASK-321: Create task monitoring
 
 from celery import Celery
 from celery.schedules import crontab
-import os
+from app.core.config import settings
 
-# Celery configuration
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+# Celery configuration using settings
+CELERY_BROKER_URL = settings.REDIS_URL
+CELERY_RESULT_BACKEND = settings.REDIS_URL
 
 # Create Celery app
 celery_app = Celery(
@@ -24,7 +24,6 @@ celery_app = Celery(
     backend=CELERY_RESULT_BACKEND,
     include=[
         "app.tasks.automation_tasks",
-        "app.tasks.workflow_tasks",
     ]
 )
 
@@ -64,7 +63,6 @@ celery_app.conf.update(
     # Task routes
     task_routes={
         "app.tasks.automation_tasks.*": {"queue": "automations"},
-        "app.tasks.workflow_tasks.*": {"queue": "workflows"},
     },
     
     # Default queue

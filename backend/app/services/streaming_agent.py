@@ -23,6 +23,46 @@ from app.services.encryption_service import encryption_service
 from langchain_core.messages import HumanMessage, AIMessage
 
 
+class StreamingAgentOrchestrator:
+    """
+    Agent orchestrator for streaming responses (TASK-263)
+    """
+    def __init__(self, db: Session, agent: Agent):
+        self.db = db
+        self.agent = agent
+    
+    async def stream_agent_response(
+        self,
+        messages: list[dict],
+        user_id: UUID | None = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Stream agent response with real-time updates
+        
+        Args:
+            messages: List of message dictionaries with role and content
+            user_id: Optional user ID
+            
+        Yields:
+            Event dictionaries for SSE formatting
+        """
+        # Extract user message
+        user_message = messages[-1]["content"] if messages else ""
+        
+        # Get organization ID from agent
+        org_id = self.agent.org_id
+        
+        # Use the stream_agent_execution function
+        async for event in stream_agent_execution(
+            user_message=user_message,
+            agent=self.agent,
+            db=self.db,
+            user_id=user_id or self.agent.created_by,
+            org_id=org_id
+        ):
+            yield event
+
+
 async def stream_agent_execution(
     user_message: str,
     agent: Agent,
