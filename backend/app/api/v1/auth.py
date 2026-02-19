@@ -86,9 +86,11 @@ async def register(
     )
     
     # Create default organization
+    from app.core.config import settings
+    org_slug = user.email.split('@')[0] + '-workspace'
     org = Organization(
         name=f"{user.full_name}'s Workspace",
-        created_by_id=user.id
+        slug=org_slug
     )
     db.add(org)
     await db.flush()
@@ -158,7 +160,7 @@ async def login(
     result = await db.execute(
         select(Membership)
         .where(Membership.user_id == user.id)
-        .order_by(Membership.created_at)
+        .order_by(Membership.joined_at)
         .limit(1)
     )
     membership = result.scalar_one_or_none()
