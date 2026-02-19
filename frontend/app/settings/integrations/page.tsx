@@ -9,7 +9,6 @@ import GmailIntegrationCard from '@/components/integrations/GmailIntegrationCard
 import CalendarIntegrationCard from '@/components/integrations/CalendarIntegrationCard'
 import JiraIntegrationCard from '@/components/integrations/JiraIntegrationCard'
 import SlackIntegrationCard from '@/components/integrations/SlackIntegrationCard'
-import SlackIntegrationCard from '@/components/integrations/SlackIntegrationCard'
 
 interface OAuthConnection {
   provider: string

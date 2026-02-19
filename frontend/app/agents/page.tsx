@@ -173,7 +173,6 @@ export default function AgentsPage() {
               ))}
             </div>
           )}
-        </div>
 
         {/* Delete Modal */}
         {deleteModalAgent && (
