@@ -1,23 +1,29 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { user, isLoading } = useAuthStore()
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  // Wait for Zustand to rehydrate from localStorage
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (isHydrated && !isLoading && !user) {
       // Redirect to login with return URL
       const currentPath = window.location.pathname
       router.push(`/login?redirect=${encodeURIComponent(currentPath)}`)
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, isHydrated, router])
 
-  // Show loading state
-  if (isLoading) {
+  // Show loading state while hydrating or loading
+  if (!isHydrated || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
