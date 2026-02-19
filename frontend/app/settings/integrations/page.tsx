@@ -25,6 +25,8 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (currentOrganization) {
       loadConnections()
+    } else {
+      setIsLoading(false)
     }
   }, [currentOrganization])
 

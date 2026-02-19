@@ -48,6 +48,8 @@ export default function CredentialsPage() {
   useEffect(() => {
     if (currentOrganization) {
       loadCredentials()
+    } else {
+      setIsLoading(false)
     }
   }, [currentOrganization])
 
