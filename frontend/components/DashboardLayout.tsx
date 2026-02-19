@@ -16,18 +16,21 @@ interface Organization {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { currentOrganization, setCurrentOrganization } = useOrganizationStore()
-  const [isLoadingOrg, setIsLoadingOrg] = useState(false)
+  const [isLoadingOrg, setIsLoadingOrg] = useState(true)
 
   useEffect(() => {
-    // Load organizations if no current organization is set
-    if (!currentOrganization) {
-      loadDefaultOrganization()
-    }
+    loadDefaultOrganization()
   }, [])
 
   const loadDefaultOrganization = async () => {
-    setIsLoadingOrg(true)
     try {
+      // If organization already set (from localStorage), just mark as loaded
+      if (currentOrganization) {
+        setIsLoadingOrg(false)
+        return
+      }
+
+      // Otherwise, fetch organizations
       const response = await api.get('/organizations')
       if (response.data.length > 0) {
         setCurrentOrganization(response.data[0])
@@ -46,7 +49,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex-1 flex flex-col overflow-hidden">
           <EmailVerificationBanner />
           <main className="flex-1 overflow-y-auto bg-gray-50">
-            {children}
+            {isLoadingOrg ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+              </div>
+            ) : (
+              children
+            )}
           </main>
         </div>
       </div>

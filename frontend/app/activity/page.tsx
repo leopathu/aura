@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useAuthStore } from '@/store/auth'
+import { useAuthStore } from '@/store/authStore'
 import ActivityTimeline from '@/components/activity/ActivityTimeline'
 import ActivityFilters from '@/components/activity/ActivityFilters'
 import ActivityDetailsModal from '@/components/activity/ActivityDetailsModal'

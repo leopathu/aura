@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { ActivityFilters as ActivityFiltersType, ACTION_CATEGORIES } from '@/types/activity'
-import { useAuthStore } from '@/store/auth'
+import { useAuthStore } from '@/store/authStore'
 import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'

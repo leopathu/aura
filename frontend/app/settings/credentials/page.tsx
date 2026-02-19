@@ -84,7 +84,10 @@ export default function CredentialsPage() {
     api_key: string
     label: string
   }) => {
-    if (!currentOrganization) return
+    if (!currentOrganization) {
+      alert('No organization selected')
+      return
+    }
 
     try {
       const token = useAuthStore.getState().accessToken
@@ -101,10 +104,11 @@ export default function CredentialsPage() {
       )
 
       if (response.ok) {
-        loadCredentials()
+        await loadCredentials()
         setShowAddModal(false)
       } else {
         const error = await response.json()
+        console.error('API Error:', error)
         alert(error.detail || 'Failed to add credential')
       }
     } catch (error) {

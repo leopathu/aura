@@ -4,7 +4,8 @@ Business logic for organization and membership management
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, or_, select
 from typing import List, Optional
 from uuid import UUID
 import re
@@ -131,7 +132,7 @@ async def get_organization_by_slug(db: Session, slug: str) -> Optional[Organizat
     return db.query(Organization).filter(Organization.slug == slug).first()
 
 
-async def get_user_organizations(db: Session, user_id: UUID) -> List[tuple[Organization, str]]:
+async def get_user_organizations(db: AsyncSession, user_id: UUID) -> List[tuple[Organization, str]]:
     """
     Get all organizations a user belongs to with their role
     
@@ -142,13 +143,15 @@ async def get_user_organizations(db: Session, user_id: UUID) -> List[tuple[Organ
     Returns:
         List of (Organization, role) tuples
     """
-    results = (
-        db.query(Organization, Membership.role)
+    stmt = (
+        select(Organization, Membership.role)
         .join(Membership, Membership.org_id == Organization.id)
         .filter(Membership.user_id == user_id)
         .order_by(Organization.created_at.desc())
-        .all()
     )
+    
+    result = await db.execute(stmt)
+    results = result.all()
     
     return [(org, role.value) for org, role in results]
 
