@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import DashboardLayout from '@/components/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import MessageList from '@/components/chat/MessageList'
@@ -318,8 +318,8 @@ export default function ChatPage() {
   }
 
   return (
-    <ProtectedRoute>
-      <div className="flex h-screen bg-gray-50">
+    <DashboardLayout>
+      <div className="flex h-full">
         {/* Sidebar */}
         <ConversationSidebar
           conversations={conversations}
@@ -395,6 +395,6 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
-    </ProtectedRoute>
+    </DashboardLayout>
   )
 }

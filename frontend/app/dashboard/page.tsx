@@ -1,37 +1,31 @@
 'use client'
 
-import ProtectedRoute from '@/components/ProtectedRoute'
-import EmailVerificationBanner from '@/components/EmailVerificationBanner'
+import DashboardLayout from '@/components/DashboardLayout'
 import OrganizationSwitcher from '@/components/OrganizationSwitcher'
 import { useAuthStore } from '@/store/authStore'
-import { useOrganizationStore } from '@/store/organizationStore'
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user)
-  const currentOrganization = useOrganizationStore((state) => state.currentOrganization)
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <EmailVerificationBanner />
-        
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          <div className="mb-8 flex items-start justify-between">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900">
-                Welcome back, {user?.full_name}!
-              </h1>
-              <p className="mt-2 text-gray-600">
-                Here's what's happening with your AI assistants
-              </p>
-            </div>
-            
-            <div className="w-64 ml-4">
-              <OrganizationSwitcher />
-            </div>
+    <DashboardLayout>
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex items-start justify-between">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-gray-900">
+              Welcome back, {user?.full_name}!
+            </h1>
+            <p className="mt-2 text-gray-600">
+              Here's what's happening with your AI assistants
+            </p>
           </div>
+          
+          <div className="w-64 ml-4">
+            <OrganizationSwitcher />
+          </div>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
@@ -73,9 +67,9 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          </div>
+        </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
@@ -93,7 +87,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </div>
-    </ProtectedRoute>
-  )
-}
+      </DashboardLayout>
+    )
+  }

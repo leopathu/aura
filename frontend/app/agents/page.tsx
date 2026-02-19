@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import ProtectedRoute from '@/components/ProtectedRoute'
+import DashboardLayout from '@/components/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import DeleteAgentModal from '@/components/agents/DeleteAgentModal'
@@ -78,9 +78,8 @@ export default function AgentsPage() {
   }
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <DashboardLayout>
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8 flex items-start justify-between">
             <div>
@@ -175,16 +174,16 @@ export default function AgentsPage() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Delete Modal */}
-      {deleteModalAgent && (
-        <DeleteAgentModal
-          agent={deleteModalAgent}
-          onConfirm={() => handleDeleteAgent(deleteModalAgent.id)}
-          onCancel={() => setDeleteModalAgent(null)}
-        />
-      )}
-    </ProtectedRoute>
+        {/* Delete Modal */}
+        {deleteModalAgent && (
+          <DeleteAgentModal
+            agent={deleteModalAgent}
+            onConfirm={() => handleDeleteAgent(deleteModalAgent.id)}
+            onCancel={() => setDeleteModalAgent(null)}
+          />
+        )}
+      </div>
+    </DashboardLayout>
   )
 }
