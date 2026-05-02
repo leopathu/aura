@@ -1,128 +1,223 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useBrainDocuments } from "@/hooks/useBrains";
 import { documentService } from "@/services/document-service";
+import { brainService } from "@/services/brain-service";
 import { getErrorMessage } from "@/lib/api-client";
-import type { Brain, Document } from "@/types";
+import type { Brain, BrainDocument } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface BrainSourcesProps {
   brain: Brain;
 }
 
+const FILE_ACCEPT = ".pdf,.docx,.xlsx,.xls,.csv,.txt";
+
+function fileIcon(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  if (ext === "pdf") return "📄";
+  if (ext === "docx") return "📝";
+  if (ext === "xlsx" || ext === "xls") return "📊";
+  if (ext === "csv") return "📋";
+  return "📃";
+}
+
 /**
- * Sources tab — attach or detach documents for a brain.
+ * Sources tab — upload files into a brain and manage connected documents.
  */
 export function BrainSources({ brain }: BrainSourcesProps) {
-  const { documents, isLoading, addDocument, removeDocument } = useBrainDocuments(brain.id);
-  const [allDocs, setAllDocs] = useState<Document[]>([]);
-  const [loadingAll, setLoadingAll] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { documents, isLoading, removeDocument, refetch } = useBrainDocuments(brain.id);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load all available documents
+  // Reset status when brain changes
   useEffect(() => {
-    setLoadingAll(true);
-    documentService
-      .list(100)
-      .then(setAllDocs)
-      .catch((err) => setError(getErrorMessage(err)))
-      .finally(() => setLoadingAll(false));
+    setError(null);
+    setSuccess(null);
   }, [brain.id]);
 
-  const connectedIds = new Set(documents.map((d: { id: string }) => d.id));
-
-  const filtered = allDocs.filter((d: Document) =>
-    d.title.toLowerCase().includes(search.toLowerCase())
+  const handleFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      setUploading(true);
+      setError(null);
+      setSuccess(null);
+      const results: string[] = [];
+      for (const file of Array.from(files)) {
+        try {
+          const result = await documentService.uploadFile(file);
+          await brainService.addDocument(brain.id, result.document_id);
+          results.push(`"${file.name}" (${result.chunks_created} chunks)`);
+        } catch (err) {
+          setError(`Failed to upload "${file.name}": ${getErrorMessage(err)}`);
+          setUploading(false);
+          refetch();
+          return;
+        }
+      }
+      setSuccess(`✓ Uploaded ${results.join(", ")}`);
+      setUploading(false);
+      refetch();
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    [brain.id, refetch]
   );
 
-  const handleToggle = async (docId: string, connected: boolean) => {
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setDragOver(false);
+      void handleFiles(e.dataTransfer.files);
+    },
+    [handleFiles]
+  );
+
+  const handleDelete = async (doc: BrainDocument) => {
+    setDeletingId(doc.id);
     setError(null);
     try {
-      if (connected) {
-        await removeDocument(docId);
-      } else {
-        await addDocument(docId);
-      }
+      await documentService.delete(doc.id);
+      refetch();
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setDeletingId(null);
     }
   };
 
+  // Suppress unused variable lint warning — removeDocument is part of the hook API
+  void removeDocument;
+
+  const filtered = documents.filter((d: BrainDocument) =>
+    d.title.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="flex flex-col h-full px-6 py-5 gap-4">
-      <div>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="px-6 pt-5 pb-3 shrink-0">
         <h3 className="text-sm font-semibold text-slate-700">
-          Sources for{" "}
-          <span className="text-brand-700">{brain.name}</span>
+          Sources — <span className="text-brand-700">{brain.name}</span>
         </h3>
         <p className="text-xs text-slate-400 mt-0.5">
-          Toggle documents on or off to include them in this brain&apos;s context.
+          Upload files to feed this brain. Supported: PDF, DOCX, XLSX, CSV, TXT.
         </p>
       </div>
 
-      {/* Search */}
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search documents…"
-        className="border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
-      />
+      {/* Drop zone */}
+      <div className="px-6 pb-4 shrink-0">
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={cn(
+            "relative border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors text-center",
+            dragOver
+              ? "border-brand-400 bg-brand-50"
+              : "border-slate-300 hover:border-brand-400 hover:bg-brand-50/50"
+          )}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={FILE_ACCEPT}
+            multiple
+            className="hidden"
+            onChange={(e) => void handleFiles(e.target.files)}
+          />
+          {uploading ? (
+            <div className="flex flex-col items-center gap-2">
+              <svg className="animate-spin h-6 w-6 text-brand-500" viewBox="0 0 24 24" fill="none">
+                <circle
+                  className="opacity-25"
+                  cx="12" cy="12" r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v8z"
+                />
+              </svg>
+              <span className="text-sm text-brand-600 font-medium">Uploading…</span>
+            </div>
+          ) : (
+            <>
+              <div className="text-2xl mb-1">⬆️</div>
+              <p className="text-sm font-medium text-slate-600">
+                Drop files here or <span className="text-brand-600 underline">browse</span>
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">PDF · DOCX · XLSX · CSV · TXT</p>
+            </>
+          )}
+        </div>
 
-      {error && (
-        <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          {error}
-        </p>
-      )}
+        {/* Status messages */}
+        {success && (
+          <p className="mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+            {success}
+          </p>
+        )}
+        {error && (
+          <p className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="px-6 mb-3 shrink-0">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search documents…"
+          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
 
       {/* Document list */}
-      <div className="flex-1 overflow-y-auto space-y-2">
-        {(isLoading || loadingAll) && (
+      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-2">
+        {isLoading && (
           <p className="text-xs text-slate-400 py-4 text-center">Loading…</p>
         )}
-        {!isLoading && !loadingAll && filtered.length === 0 && (
-          <p className="text-xs text-slate-400 py-4 text-center">
-            {allDocs.length === 0
-              ? "No documents ingested yet. Add documents from the Documents page."
+        {!isLoading && filtered.length === 0 && (
+          <p className="text-xs text-slate-400 py-6 text-center">
+            {documents.length === 0
+              ? "No documents yet. Upload files above to feed this brain."
               : "No documents match your search."}
           </p>
         )}
-        {filtered.map((doc) => {
-          const connected = connectedIds.has(doc.id);
-          return (
-            <div
-              key={doc.id}
-              className={cn(
-                "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                connected
-                  ? "border-brand-200 bg-brand-50"
-                  : "border-slate-200 bg-white hover:border-slate-300"
-              )}
-            >
-              <div className="min-w-0 flex-1">
+        {filtered.map((doc: BrainDocument) => (
+          <div
+            key={doc.id}
+            className="flex items-center justify-between p-3 rounded-xl border border-brand-200 bg-brand-50 transition-colors"
+          >
+            <div className="min-w-0 flex-1 flex items-center gap-2">
+              <span className="text-lg shrink-0">{fileIcon(doc.title)}</span>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-700 truncate">{doc.title}</p>
-                {doc.source && (
-                  <p className="text-xs text-slate-400 truncate">{doc.source}</p>
-                )}
-                <p className="text-xs text-slate-300 mt-0.5">
+                <p className="text-xs text-slate-400 mt-0.5">
                   {new Date(doc.created_at).toLocaleDateString()}
                 </p>
               </div>
-              <button
-                onClick={() => handleToggle(doc.id, connected)}
-                className={cn(
-                  "ml-3 shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                  connected
-                    ? "bg-brand-600 text-white hover:bg-brand-700"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                )}
-              >
-                {connected ? "Remove" : "Add"}
-              </button>
             </div>
-          );
-        })}
+            <button
+              onClick={() => void handleDelete(doc)}
+              disabled={deletingId === doc.id}
+              className="ml-3 shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:border-red-300 hover:text-red-600 transition-colors disabled:opacity-50"
+            >
+              {deletingId === doc.id ? "…" : "Delete"}
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

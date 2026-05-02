@@ -29,4 +29,14 @@ export const documentService = {
   async delete(id: string): Promise<void> {
     await apiClient.delete(`/documents/${id}`);
   },
+
+  /** Upload a file (PDF, DOCX, XLSX, CSV, TXT) and ingest it into the RAG pipeline. */
+  async uploadFile(file: File): Promise<IngestResponse> {
+    const form = new FormData();
+    form.append("file", file);
+    const { data } = await apiClient.post<IngestResponse>("/documents/upload", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data;
+  },
 };
