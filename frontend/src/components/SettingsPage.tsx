@@ -66,12 +66,12 @@ const DEFAULTS: AISettingsUpdate = {
   llm_provider: "openai",
   llm_model: "gpt-4o",
   llm_api_key: "",
-  llm_base_url: "http://localhost:11434",
+  llm_base_url: "http://host.docker.internal:11434",
   temperature: 0.2,
   embedding_provider: "openai",
   embedding_model: "text-embedding-3-small",
   embedding_api_key: "",
-  embedding_base_url: "http://localhost:11434",
+  embedding_base_url: "http://host.docker.internal:11434",
   chunk_size: 512,
   chunk_overlap: 64,
   retrieval_top_k: 5,
@@ -384,11 +384,11 @@ export function SettingsPage() {
           )}
 
           {llmIsOllama && (
-            <FieldRow label="Ollama URL" hint="Base URL of your local Ollama server">
+            <FieldRow label="Ollama URL" hint="Use host.docker.internal:11434 when running inside Docker">
               <Input
                 value={form.llm_base_url}
                 onChange={(v) => set("llm_base_url", v)}
-                placeholder="http://localhost:11434"
+                placeholder="http://host.docker.internal:11434"
               />
             </FieldRow>
           )}
@@ -463,11 +463,11 @@ export function SettingsPage() {
           )}
 
           {embIsOllama && (
-            <FieldRow label="Ollama URL">
+            <FieldRow label="Ollama URL" hint="Use host.docker.internal:11434 when running inside Docker">
               <Input
                 value={form.embedding_base_url}
                 onChange={(v) => set("embedding_base_url", v)}
-                placeholder="http://localhost:11434"
+                placeholder="http://host.docker.internal:11434"
               />
             </FieldRow>
           )}

@@ -23,13 +23,21 @@ class AISettingsRepository:
         return result.scalar_one_or_none()
 
     async def upsert(self, user_id: uuid.UUID, payload: AISettingsUpdate) -> AISettings:
-        """Create or fully replace the AI settings for a user."""
+        """Create or update AI settings for a user.
+
+        API key fields are only updated when a non-empty value is submitted,
+        so the frontend can omit keys (blank = keep current).
+        """
         row = await self.get_by_user(user_id)
         if row is None:
             row = AISettings(user_id=user_id)
             self._db.add(row)
 
+        KEY_FIELDS = {"llm_api_key", "embedding_api_key"}
         for field, value in payload.model_dump().items():
+            if field in KEY_FIELDS and not value:
+                # blank submitted → keep the stored key
+                continue
             setattr(row, field, value)
 
         await self._db.flush()

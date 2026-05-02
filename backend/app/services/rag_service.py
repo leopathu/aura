@@ -25,36 +25,67 @@ _LLM_BASE_URLS: dict[str, str] = {
 }
 
 
+def _resolve_api_key(ai_key: str, fallback: str, provider: str) -> str:
+    """Return the best available API key, raising a clear error if none is usable."""
+    from fastapi import HTTPException  # noqa: PLC0415
+
+    key = ai_key or fallback
+    if not key or key.startswith("sk-replace") or key == "changeme":
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"No API key configured for provider '{provider}'. "
+                "Please go to Settings and enter your API key."
+            ),
+        )
+    return key
+
+
 def _build_llm_client(ai: AISettings | None) -> openai.AsyncOpenAI:
     """Build an AsyncOpenAI-compatible LLM client from user AI settings."""
     if ai is None:
-        return openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        return openai.AsyncOpenAI(
+            api_key=_resolve_api_key(settings.openai_api_key, "", "openai")
+        )
 
     provider = ai.llm_provider
-    api_key = ai.llm_api_key or settings.openai_api_key
 
     if provider == "ollama":
-        base = (ai.llm_base_url.rstrip("/") + "/v1") if ai.llm_base_url else "http://localhost:11434/v1"
+        base_url = ai.llm_base_url or "http://host.docker.internal:11434"
+        base = base_url.rstrip("/") + "/v1"
         return openai.AsyncOpenAI(api_key="ollama", base_url=base)
     if provider == "anthropic":
-        return openai.AsyncOpenAI(api_key=api_key, base_url="https://api.anthropic.com/v1")
+        return openai.AsyncOpenAI(
+            api_key=_resolve_api_key(ai.llm_api_key, settings.openai_api_key, provider),
+            base_url="https://api.anthropic.com/v1",
+        )
     if provider == "google":
         return openai.AsyncOpenAI(
-            api_key=api_key,
+            api_key=_resolve_api_key(ai.llm_api_key, settings.openai_api_key, provider),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
-    return openai.AsyncOpenAI(api_key=api_key)
+    # openai
+    return openai.AsyncOpenAI(
+        api_key=_resolve_api_key(ai.llm_api_key, settings.openai_api_key, provider)
+    )
 
 
 def _build_embedding_service(ai: AISettings | None) -> EmbeddingService:
     """Build an EmbeddingService from user AI settings."""
     if ai is None:
-        return EmbeddingService()
+        return EmbeddingService(
+            provider="openai",
+            model=settings.embedding_model,
+            api_key=_resolve_api_key(settings.openai_api_key, "", "openai"),
+        )
+    effective_key = ai.embedding_api_key or ai.llm_api_key
     return EmbeddingService(
         provider=ai.embedding_provider,
         model=ai.embedding_model,
-        api_key=ai.embedding_api_key or ai.llm_api_key or settings.openai_api_key,
-        base_url=ai.embedding_base_url,
+        api_key=effective_key if ai.embedding_provider == "ollama" else _resolve_api_key(
+            effective_key, settings.openai_api_key, ai.embedding_provider
+        ),
+        base_url=ai.embedding_base_url or "http://host.docker.internal:11434",
     )
 
 

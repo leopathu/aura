@@ -12,20 +12,17 @@ from app.core.exceptions import EmbeddingException
 def _build_embedding_client(
     provider: str, api_key: str, base_url: str
 ) -> openai.AsyncOpenAI:
-    """Build an AsyncOpenAI client for the given embedding provider.
-
-    Supports openai, google (Gemini), and ollama (OpenAI-compatible).
-    """
+    """Build an AsyncOpenAI client for the given embedding provider."""
     if provider == "ollama":
-        resolved_base = (base_url.rstrip("/") + "/v1") if base_url else "http://localhost:11434/v1"
-        return openai.AsyncOpenAI(api_key="ollama", base_url=resolved_base)
+        resolved = (base_url.rstrip("/") + "/v1") if base_url else "http://host.docker.internal:11434/v1"
+        return openai.AsyncOpenAI(api_key="ollama", base_url=resolved)
     if provider == "google":
         return openai.AsyncOpenAI(
-            api_key=api_key or settings.openai_api_key,
+            api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
     # Default: openai
-    return openai.AsyncOpenAI(api_key=api_key or settings.openai_api_key)
+    return openai.AsyncOpenAI(api_key=api_key)
 
 
 class EmbeddingService:
