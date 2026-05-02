@@ -24,7 +24,7 @@ function fileIcon(filename: string): string {
 }
 
 function StatusBadge({ doc }: { doc: BrainDocument }) {
-  const status = doc.embed_status ?? "ready";
+  const status = doc.embed_status ?? "pending";
 
   if (status === "ready") {
     return (
@@ -89,7 +89,7 @@ export function BrainSources({ brain }: BrainSourcesProps) {
       (d: BrainDocument) => d.embed_status === "pending" || d.embed_status === "processing"
     );
     if (!hasBusy) return;
-    const timer = setInterval(() => { void refetch(); }, 3000);
+    const timer = setInterval(() => { void refetch(); }, 6000);
     return () => clearInterval(timer);
   }, [documents, refetch]);
 

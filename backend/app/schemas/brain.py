@@ -29,6 +29,8 @@ class BrainDocumentResponse(BaseModel):
     title: str
     source: str | None
     created_at: datetime
+    embed_status: str
+    embed_error: str | None
 
 
 class BrainResponse(BaseModel):

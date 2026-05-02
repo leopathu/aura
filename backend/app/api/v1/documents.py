@@ -62,6 +62,9 @@ async def _process_document_background(
     user_id: uuid.UUID,
 ) -> None:
     """Background task: chunk, embed and store a document after fast upload."""
+    import logging  # noqa: PLC0415
+
+    logger = logging.getLogger(__name__)
     async with AsyncSessionLocal() as db:
         try:
             ai = await AISettingsRepository(db).get_by_user(user_id)
@@ -69,10 +72,15 @@ async def _process_document_background(
             payload = DocumentCreate(title=title, content=content)
             await svc.ingest_document(payload, document_id=document_id)
             await db.commit()
-        except Exception:
+        except Exception as exc:
+            logger.exception("Background embedding failed for document %s: %s", document_id, exc)
             await db.rollback()
-            # Status already set to "failed" inside ingest_document
+            # Write the failed status in a fresh transaction
             try:
+                doc_repo = DocumentRepository(db)
+                await doc_repo.set_embed_status(
+                    uuid.UUID(document_id), "failed", str(exc)
+                )
                 await db.commit()
             except Exception:
                 pass
@@ -94,6 +102,12 @@ async def upload_document(
             detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(allowed))}",
         )
     raw = await file.read()
+    max_bytes = 10 * 1024 * 1024  # 10 MB
+    if len(raw) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large ({len(raw) // 1024 // 1024} MB). Maximum allowed size is 10 MB.",
+        )
     try:
         content = _extract_text(file.filename or "file", raw)
     except Exception as exc:
