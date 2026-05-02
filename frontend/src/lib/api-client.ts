@@ -15,6 +15,18 @@ export const apiClient = axios.create({
   timeout: 30_000,
 });
 
+// Attach Bearer token from localStorage on every request (client-side only)
+// Only set if not already explicitly provided by the caller.
+apiClient.interceptors.request.use((config) => {
+  if (typeof window !== "undefined" && !config.headers.Authorization) {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 /** Extract a human-readable error message from an Axios error. */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof AxiosError) {
