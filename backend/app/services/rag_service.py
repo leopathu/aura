@@ -41,6 +41,13 @@ def _resolve_api_key(ai_key: str, fallback: str, provider: str) -> str:
     return key
 
 
+def _normalize_ollama_url(url: str) -> str:
+    """Rewrite localhost Ollama URLs to host.docker.internal for Docker networking."""
+    if not url:
+        return "http://host.docker.internal:11434"
+    return url.replace("localhost", "host.docker.internal").replace("127.0.0.1", "host.docker.internal")
+
+
 def _build_llm_client(ai: AISettings | None) -> openai.AsyncOpenAI:
     """Build an AsyncOpenAI-compatible LLM client from user AI settings."""
     if ai is None:
@@ -51,7 +58,7 @@ def _build_llm_client(ai: AISettings | None) -> openai.AsyncOpenAI:
     provider = ai.llm_provider
 
     if provider == "ollama":
-        base_url = ai.llm_base_url or "http://host.docker.internal:11434"
+        base_url = _normalize_ollama_url(ai.llm_base_url)
         base = base_url.rstrip("/") + "/v1"
         return openai.AsyncOpenAI(api_key="ollama", base_url=base)
     if provider == "anthropic":
@@ -73,10 +80,20 @@ def _build_llm_client(ai: AISettings | None) -> openai.AsyncOpenAI:
 def _build_embedding_service(ai: AISettings | None) -> EmbeddingService:
     """Build an EmbeddingService from user AI settings."""
     if ai is None:
+        # No settings saved — use env defaults (OpenAI)
+        api_key = settings.openai_api_key
+        if not api_key or api_key.startswith("sk-replace") or api_key == "changeme":
+            raise HTTPException(  # type: ignore[name-defined]
+                status_code=422,
+                detail=(
+                    "No AI settings configured. Please go to Settings and choose your "
+                    "embedding provider and model before uploading documents."
+                ),
+            )
         return EmbeddingService(
             provider="openai",
             model=settings.embedding_model,
-            api_key=_resolve_api_key(settings.openai_api_key, "", "openai"),
+            api_key=api_key,
         )
     effective_key = ai.embedding_api_key or ai.llm_api_key
     return EmbeddingService(
@@ -85,7 +102,7 @@ def _build_embedding_service(ai: AISettings | None) -> EmbeddingService:
         api_key=effective_key if ai.embedding_provider == "ollama" else _resolve_api_key(
             effective_key, settings.openai_api_key, ai.embedding_provider
         ),
-        base_url=ai.embedding_base_url or "http://host.docker.internal:11434",
+        base_url=_normalize_ollama_url(ai.embedding_base_url),
     )
 
 

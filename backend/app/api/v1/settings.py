@@ -8,7 +8,6 @@ from app.db.session import get_db
 from app.models.user import User
 from app.repositories.ai_settings_repository import AISettingsRepository
 from app.schemas.ai_settings import AISettingsResponse, AISettingsUpdate
-
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
@@ -35,14 +34,12 @@ async def get_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AISettingsResponse:
-    """Return the current user's AI settings (or defaults if not yet configured)."""
+    """Return the current user's AI settings, creating defaults on first access."""
     repo = AISettingsRepository(db)
     row = await repo.get_by_user(current_user.id)
     if row is None:
-        # Return defaults without creating a row
-        from app.models.ai_settings import AISettings  # noqa: PLC0415
-
-        row = AISettings()
+        # Auto-create a defaults row so uploads work after the user saves Settings
+        row = await repo.upsert(current_user.id, AISettingsUpdate())
     return _to_response(row)
 
 
