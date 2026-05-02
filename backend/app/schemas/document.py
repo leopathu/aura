@@ -29,5 +29,7 @@ class DocumentResponse(BaseModel):
     id: uuid.UUID
     title: str
     source: str | None
+    embed_status: str
+    embed_error: str | None
     created_at: datetime
     updated_at: datetime

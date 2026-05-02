@@ -147,25 +147,43 @@ class RAGService:
     # Ingestion
     # ------------------------------------------------------------------
 
-    async def ingest_document(self, payload: DocumentCreate) -> dict:
+    async def ingest_document(self, payload: DocumentCreate, document_id: str | None = None) -> dict:
         """Ingest a document: chunk → embed → store.
+
+        If document_id is provided, the document already exists (fast-upload path)
+        and we only need to chunk/embed and update its status.
 
         Args:
             payload: Document creation data including raw content.
+            document_id: Optional existing document UUID (background processing).
 
         Returns:
             Dict with document id and number of chunks created.
         """
-        document = await self._doc_repo.create(payload)
+        import uuid as _uuid  # noqa: PLC0415
 
-        raw_chunks = _chunk_text(payload.content, self._chunk_size, self._chunk_overlap)
-        embeddings = await self._embedding_svc.embed_batch(raw_chunks)
+        if document_id:
+            document = await self._doc_repo.get_by_id(_uuid.UUID(document_id))
+            if not document:
+                raise ValueError(f"Document {document_id} not found")
+        else:
+            document = await self._doc_repo.create(payload)
 
-        chunk_tuples = [
-            (index, content, embedding)
-            for index, (content, embedding) in enumerate(zip(raw_chunks, embeddings))
-        ]
-        await self._chunk_repo.create_bulk(document.id, chunk_tuples)
+        await self._doc_repo.set_embed_status(document.id, "processing")
+
+        try:
+            raw_chunks = _chunk_text(payload.content, self._chunk_size, self._chunk_overlap)
+            embeddings = await self._embedding_svc.embed_batch(raw_chunks)
+
+            chunk_tuples = [
+                (index, content, embedding)
+                for index, (content, embedding) in enumerate(zip(raw_chunks, embeddings))
+            ]
+            await self._chunk_repo.create_bulk(document.id, chunk_tuples)
+            await self._doc_repo.set_embed_status(document.id, "ready")
+        except Exception as exc:
+            await self._doc_repo.set_embed_status(document.id, "failed", str(exc))
+            raise
 
         return {"document_id": str(document.id), "chunks_created": len(chunk_tuples)}
 

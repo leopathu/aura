@@ -44,6 +44,16 @@ class DocumentRepository:
         await self.db.refresh(document)
         return document
 
+    async def set_embed_status(
+        self, document_id: uuid.UUID, status: str, error: str | None = None
+    ) -> None:
+        """Update the embed_status (and optional error) for a document."""
+        doc = await self.get_by_id(document_id)
+        if doc:
+            doc.embed_status = status
+            doc.embed_error = error
+            await self.db.flush()
+
     async def delete(self, document: Document) -> None:
         """Delete a document and cascade to its chunks."""
         await self.db.delete(document)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { useBrainDocuments } from "@/hooks/useBrains";
 import { documentService } from "@/services/document-service";
 import { brainService } from "@/services/brain-service";
@@ -23,6 +23,47 @@ function fileIcon(filename: string): string {
   return "📃";
 }
 
+function StatusBadge({ doc }: { doc: BrainDocument }) {
+  const status = doc.embed_status ?? "ready";
+
+  if (status === "ready") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+        Ready
+      </span>
+    );
+  }
+  if (status === "processing") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+        Embedding…
+      </span>
+    );
+  }
+  if (status === "pending") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block animate-pulse" />
+        Pending
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 cursor-help"
+      title={doc.embed_error ?? "Embedding failed"}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+      Failed
+    </span>
+  );
+}
+
 /**
  * Sources tab — upload files into a brain and manage connected documents.
  */
@@ -42,18 +83,29 @@ export function BrainSources({ brain }: BrainSourcesProps) {
     setSuccess(null);
   }, [brain.id]);
 
+  // Poll every 3 s while any document is pending or processing
+  useEffect(() => {
+    const hasBusy = documents.some(
+      (d: BrainDocument) => d.embed_status === "pending" || d.embed_status === "processing"
+    );
+    if (!hasBusy) return;
+    const timer = setInterval(() => { void refetch(); }, 3000);
+    return () => clearInterval(timer);
+  }, [documents, refetch]);
+
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
       setUploading(true);
       setError(null);
       setSuccess(null);
-      const results: string[] = [];
+      const uploaded: string[] = [];
       for (const file of Array.from(files)) {
         try {
+          // Upload returns immediately — embedding happens in background
           const result = await documentService.uploadFile(file);
           await brainService.addDocument(brain.id, result.document_id);
-          results.push(`"${file.name}" (${result.chunks_created} chunks)`);
+          uploaded.push(`"${file.name}"`);
         } catch (err) {
           setError(`Failed to upload "${file.name}": ${getErrorMessage(err)}`);
           setUploading(false);
@@ -61,7 +113,7 @@ export function BrainSources({ brain }: BrainSourcesProps) {
           return;
         }
       }
-      setSuccess(`✓ Uploaded ${results.join(", ")}`);
+      setSuccess(`✓ Uploaded ${uploaded.join(", ")} — embedding in background…`);
       setUploading(false);
       refetch();
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -91,7 +143,6 @@ export function BrainSources({ brain }: BrainSourcesProps) {
     }
   };
 
-  // Suppress unused variable lint warning — removeDocument is part of the hook API
   void removeDocument;
 
   const filtered = documents.filter((d: BrainDocument) =>
@@ -135,17 +186,8 @@ export function BrainSources({ brain }: BrainSourcesProps) {
           {uploading ? (
             <div className="flex flex-col items-center gap-2">
               <svg className="animate-spin h-6 w-6 text-brand-500" viewBox="0 0 24 24" fill="none">
-                <circle
-                  className="opacity-25"
-                  cx="12" cy="12" r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8z"
-                />
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
               <span className="text-sm text-brand-600 font-medium">Uploading…</span>
             </div>
@@ -185,7 +227,7 @@ export function BrainSources({ brain }: BrainSourcesProps) {
 
       {/* Document list */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-2">
-        {isLoading && (
+        {isLoading && documents.length === 0 && (
           <p className="text-xs text-slate-400 py-4 text-center">Loading…</p>
         )}
         {!isLoading && filtered.length === 0 && (
@@ -202,11 +244,14 @@ export function BrainSources({ brain }: BrainSourcesProps) {
           >
             <div className="min-w-0 flex-1 flex items-center gap-2">
               <span className="text-lg shrink-0">{fileIcon(doc.title)}</span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-700 truncate">{doc.title}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {new Date(doc.created_at).toLocaleDateString()}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-slate-400">
+                    {new Date(doc.created_at).toLocaleDateString()}
+                  </p>
+                  <StatusBadge doc={doc} />
+                </div>
               </div>
             </div>
             <button

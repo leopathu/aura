@@ -5,12 +5,12 @@ import io
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.exceptions import NotFoundException
-from app.db.session import get_db
+from app.db.session import get_db, AsyncSessionLocal
 from app.models.user import User
 from app.repositories.ai_settings_repository import AISettingsRepository
 from app.repositories.document_repository import DocumentRepository
@@ -55,13 +55,37 @@ def _extract_text(filename: str, content: bytes) -> str:
     return content.decode("utf-8", errors="replace")
 
 
+async def _process_document_background(
+    document_id: str,
+    content: str,
+    title: str,
+    user_id: uuid.UUID,
+) -> None:
+    """Background task: chunk, embed and store a document after fast upload."""
+    async with AsyncSessionLocal() as db:
+        try:
+            ai = await AISettingsRepository(db).get_by_user(user_id)
+            svc = RAGService(db, ai=ai)
+            payload = DocumentCreate(title=title, content=content)
+            await svc.ingest_document(payload, document_id=document_id)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            # Status already set to "failed" inside ingest_document
+            try:
+                await db.commit()
+            except Exception:
+                pass
+
+
 @router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Upload a file (PDF, DOCX, XLSX, CSV, TXT) and ingest it into the RAG pipeline."""
+    """Upload a file immediately, then chunk+embed in the background."""
     allowed = {".pdf", ".docx", ".xlsx", ".xls", ".csv", ".txt"}
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed:
@@ -79,10 +103,25 @@ async def upload_document(
         ) from exc
 
     title = os.path.splitext(file.filename or "Untitled")[0]
+
+    # Save document record immediately with status=pending
+    doc_repo = DocumentRepository(db)
     payload = DocumentCreate(title=title, content=content)
-    ai = await AISettingsRepository(db).get_by_user(current_user.id)
-    svc = RAGService(db, ai=ai)
-    return await svc.ingest_document(payload)
+    document = await doc_repo.create(payload)
+    # embed_status defaults to "pending" via model default
+    await db.flush()
+    document_id = str(document.id)
+
+    # Schedule background processing
+    background_tasks.add_task(
+        _process_document_background,
+        document_id=document_id,
+        content=content,
+        title=title,
+        user_id=current_user.id,
+    )
+
+    return {"document_id": document_id, "chunks_created": 0, "embed_status": "pending"}
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def ingest_document(

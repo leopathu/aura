@@ -76,6 +76,8 @@ export interface BrainDocument {
   id: string;
   title: string;
   source: string | null;
+  embed_status: "pending" | "processing" | "ready" | "failed";
+  embed_error: string | null;
   created_at: string;
 }
 

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o"
-    vector_dimensions: int = 1536
+    vector_dimensions: int = 1024
 
     # RAG pipeline
     chunk_size: int = 512
