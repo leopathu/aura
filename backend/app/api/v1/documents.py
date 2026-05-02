@@ -12,6 +12,7 @@ from app.api.deps import get_current_user
 from app.core.exceptions import NotFoundException
 from app.db.session import get_db
 from app.models.user import User
+from app.repositories.ai_settings_repository import AISettingsRepository
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
 from app.services.rag_service import RAGService
@@ -58,7 +59,7 @@ def _extract_text(filename: str, content: bytes) -> str:
 async def upload_document(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Upload a file (PDF, DOCX, XLSX, CSV, TXT) and ingest it into the RAG pipeline."""
     allowed = {".pdf", ".docx", ".xlsx", ".xls", ".csv", ".txt"}
@@ -79,17 +80,19 @@ async def upload_document(
 
     title = os.path.splitext(file.filename or "Untitled")[0]
     payload = DocumentCreate(title=title, content=content)
-    svc = RAGService(db)
+    ai = await AISettingsRepository(db).get_by_user(current_user.id)
+    svc = RAGService(db, ai=ai)
     return await svc.ingest_document(payload)
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def ingest_document(
     payload: DocumentCreate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Ingest a document into the RAG pipeline (chunk + embed + store)."""
-    svc = RAGService(db)
+    ai = await AISettingsRepository(db).get_by_user(current_user.id)
+    svc = RAGService(db, ai=ai)
     return await svc.ingest_document(payload)
 
 

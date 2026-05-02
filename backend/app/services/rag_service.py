@@ -1,9 +1,12 @@
 """RAG pipeline service — ingestion, retrieval, and generation."""
 
+from __future__ import annotations
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import LLMException
+from app.models.ai_settings import AISettings
 from app.repositories.brain_repository import BrainRepository
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
@@ -12,6 +15,47 @@ from app.schemas.query import QueryRequest, QueryResponse, SourceChunk
 from app.services.embedding_service import EmbeddingService
 
 import openai
+
+# Provider → base URL for LLM chat completions
+_LLM_BASE_URLS: dict[str, str] = {
+    "openai": "",
+    "anthropic": "https://api.anthropic.com/v1",
+    "google": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "ollama": "",  # resolved dynamically from llm_base_url
+}
+
+
+def _build_llm_client(ai: AISettings | None) -> openai.AsyncOpenAI:
+    """Build an AsyncOpenAI-compatible LLM client from user AI settings."""
+    if ai is None:
+        return openai.AsyncOpenAI(api_key=settings.openai_api_key)
+
+    provider = ai.llm_provider
+    api_key = ai.llm_api_key or settings.openai_api_key
+
+    if provider == "ollama":
+        base = (ai.llm_base_url.rstrip("/") + "/v1") if ai.llm_base_url else "http://localhost:11434/v1"
+        return openai.AsyncOpenAI(api_key="ollama", base_url=base)
+    if provider == "anthropic":
+        return openai.AsyncOpenAI(api_key=api_key, base_url="https://api.anthropic.com/v1")
+    if provider == "google":
+        return openai.AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    return openai.AsyncOpenAI(api_key=api_key)
+
+
+def _build_embedding_service(ai: AISettings | None) -> EmbeddingService:
+    """Build an EmbeddingService from user AI settings."""
+    if ai is None:
+        return EmbeddingService()
+    return EmbeddingService(
+        provider=ai.embedding_provider,
+        model=ai.embedding_model,
+        api_key=ai.embedding_api_key or ai.llm_api_key or settings.openai_api_key,
+        base_url=ai.embedding_base_url,
+    )
 
 
 def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
@@ -37,13 +81,19 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
 class RAGService:
     """Orchestrates the full RAG pipeline: ingestion, retrieval, and generation."""
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, ai: AISettings | None = None) -> None:
         self._db = db
+        self._ai = ai
+        self._llm_model = (ai.llm_model if ai else None) or settings.llm_model
+        self._temperature = (ai.temperature if ai else None) if ai else 0.2
+        self._chunk_size = (ai.chunk_size if ai else None) or settings.chunk_size
+        self._chunk_overlap = (ai.chunk_overlap if ai else None) or settings.chunk_overlap
+        self._top_k = (ai.retrieval_top_k if ai else None) or settings.retrieval_top_k
         self._doc_repo = DocumentRepository(db)
         self._chunk_repo = ChunkRepository(db)
         self._brain_repo = BrainRepository(db)
-        self._embedding_svc = EmbeddingService()
-        self._llm_client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        self._embedding_svc = _build_embedding_service(ai)
+        self._llm_client = _build_llm_client(ai)
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -60,7 +110,7 @@ class RAGService:
         """
         document = await self._doc_repo.create(payload)
 
-        raw_chunks = _chunk_text(payload.content, settings.chunk_size, settings.chunk_overlap)
+        raw_chunks = _chunk_text(payload.content, self._chunk_size, self._chunk_overlap)
         embeddings = await self._embedding_svc.embed_batch(raw_chunks)
 
         chunk_tuples = [
@@ -92,7 +142,7 @@ class RAGService:
             document_ids = await self._brain_repo.get_document_ids(request.brain_id)
 
         results = await self._chunk_repo.similarity_search(
-            query_embedding, top_k=request.top_k, document_ids=document_ids
+            query_embedding, top_k=self._top_k, document_ids=document_ids
         )
 
         sources = [
@@ -136,12 +186,12 @@ class RAGService:
 
         try:
             response = await self._llm_client.chat.completions.create(
-                model=settings.llm_model,
+                model=self._llm_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.2,
+                temperature=self._temperature,
             )
             return response.choices[0].message.content or ""
         except openai.OpenAIError as exc:

@@ -105,3 +105,40 @@ export interface ApiError {
   detail: string;
   code: string;
 }
+
+// ---------------------------------------------------------------------------
+// AI Settings
+// ---------------------------------------------------------------------------
+
+export type LLMProvider = "openai" | "anthropic" | "google" | "ollama";
+export type EmbeddingProvider = "openai" | "google" | "ollama";
+
+export interface AISettingsUpdate {
+  llm_provider: LLMProvider;
+  llm_model: string;
+  llm_api_key: string;
+  llm_base_url: string;
+  temperature: number;
+  embedding_provider: EmbeddingProvider;
+  embedding_model: string;
+  embedding_api_key: string;
+  embedding_base_url: string;
+  chunk_size: number;
+  chunk_overlap: number;
+  retrieval_top_k: number;
+}
+
+export interface AISettingsResponse {
+  llm_provider: LLMProvider;
+  llm_model: string;
+  llm_api_key_set: boolean;
+  llm_base_url: string;
+  temperature: number;
+  embedding_provider: EmbeddingProvider;
+  embedding_model: string;
+  embedding_api_key_set: boolean;
+  embedding_base_url: string;
+  chunk_size: number;
+  chunk_overlap: number;
+  retrieval_top_k: number;
+}
