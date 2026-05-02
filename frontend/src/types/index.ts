@@ -10,7 +10,7 @@ export interface Document {
 
 export interface DocumentCreate {
   title: string;
-  source?: string;
+  source?: string | undefined;
   content: string;
 }
 

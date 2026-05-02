@@ -19,7 +19,7 @@ export function IngestForm({ onSuccess }: IngestFormProps) {
   const [content, setContent] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () => documentService.ingest({ title, source: source || undefined, content }),
+    mutationFn: () => documentService.ingest({ title, ...(source ? { source } : {}), content }),
     onSuccess: (data) => {
       alert(`Ingested ${data.chunks_created} chunks for document ${data.document_id}`);
       setTitle("");
