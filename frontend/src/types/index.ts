@@ -144,3 +144,32 @@ export interface AISettingsResponse {
   chunk_overlap: number;
   retrieval_top_k: number;
 }
+
+// ---------------------------------------------------------------------------
+// Chat / Conversations
+// ---------------------------------------------------------------------------
+
+export interface ConversationSummary {
+  id: string;
+  brain_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessageData {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources_json: string | null;
+  created_at: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  brain_id: string;
+  title: string;
+  messages: ChatMessageData[];
+  created_at: string;
+  updated_at: string;
+}

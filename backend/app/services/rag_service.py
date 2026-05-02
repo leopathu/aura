@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -262,3 +264,63 @@ class RAGService:
             return response.choices[0].message.content or ""
         except openai.OpenAIError as exc:
             raise LLMException(f"LLM generation failed: {exc}") from exc
+
+    async def stream_answer(
+        self,
+        query: str,
+        brain_id: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> AsyncGenerator[tuple[str, list[SourceChunk]], None]:
+        """Stream an LLM answer token-by-token via async generator.
+
+        Yields:
+            (token, sources) — sources only set on the first yield (empty string token).
+        """
+        import uuid as _uuid  # noqa: PLC0415
+
+        query_embedding = await self._embedding_svc.embed_text(query)
+        document_ids = await self._brain_repo.get_document_ids(_uuid.UUID(brain_id))
+
+        results = await self._chunk_repo.similarity_search(
+            query_embedding, top_k=self._top_k, document_ids=document_ids
+        )
+
+        sources = [
+            SourceChunk(
+                document_title=doc.title,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                similarity=round(similarity, 4),
+            )
+            for chunk, doc, similarity in results
+        ]
+
+        context = "\n\n".join(
+            f"[{src.document_title} — chunk {src.chunk_index}]\n{src.content}" for src in sources
+        )
+        system_prompt = (
+            "You are a helpful assistant. Answer the user's question using only the provided "
+            "context. If the context does not contain enough information, say so clearly."
+        )
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"})
+
+        # First yield carries the sources metadata
+        yield ("", sources)
+
+        try:
+            stream = await self._llm_client.chat.completions.create(
+                model=self._llm_model,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=self._temperature,
+                stream=True,
+            )
+            async for chunk in stream:
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    yield (token, [])
+        except openai.OpenAIError as exc:
+            raise LLMException(f"LLM streaming failed: {exc}") from exc
