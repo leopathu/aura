@@ -22,6 +22,12 @@ export default function HomePage() {
         >
           Create Account
         </Link>
+        <Link
+          href="/brains"
+          className="px-6 py-3 border border-slate-300 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition-colors"
+        >
+          My Brains
+        </Link>
       </div>
     </main>
   );

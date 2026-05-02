@@ -22,9 +22,9 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   if (!token) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
       <Navbar />
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 overflow-hidden">{children}</div>
     </div>
   );
 }

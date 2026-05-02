@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import LLMException
+from app.repositories.brain_repository import BrainRepository
 from app.repositories.chunk_repository import ChunkRepository
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.document import DocumentCreate
@@ -40,6 +41,7 @@ class RAGService:
         self._db = db
         self._doc_repo = DocumentRepository(db)
         self._chunk_repo = ChunkRepository(db)
+        self._brain_repo = BrainRepository(db)
         self._embedding_svc = EmbeddingService()
         self._llm_client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
 
@@ -83,7 +85,15 @@ class RAGService:
             QueryResponse with the generated answer and source chunks.
         """
         query_embedding = await self._embedding_svc.embed_text(request.query)
-        results = await self._chunk_repo.similarity_search(query_embedding, top_k=request.top_k)
+
+        # If a brain_id is specified, restrict search to that brain's documents
+        document_ids = None
+        if request.brain_id is not None:
+            document_ids = await self._brain_repo.get_document_ids(request.brain_id)
+
+        results = await self._chunk_repo.similarity_search(
+            query_embedding, top_k=request.top_k, document_ids=document_ids
+        )
 
         sources = [
             SourceChunk(

@@ -49,6 +49,40 @@ export interface IngestResponse {
   chunks_created: number;
 }
 
+// ---------------------------------------------------------------------------
+// Brains
+// ---------------------------------------------------------------------------
+
+export interface Brain {
+  id: string;
+  name: string;
+  description: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BrainCreate {
+  name: string;
+  description?: string | undefined;
+}
+
+export interface BrainUpdate {
+  name?: string | undefined;
+  description?: string | undefined;
+}
+
+export interface BrainDocument {
+  id: string;
+  title: string;
+  source: string | null;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Query
+// ---------------------------------------------------------------------------
+
 export interface SourceChunk {
   document_title: string;
   chunk_index: number;
@@ -59,6 +93,7 @@ export interface SourceChunk {
 export interface QueryRequest {
   query: string;
   top_k?: number;
+  brain_id?: string | undefined;
 }
 
 export interface QueryResponse {

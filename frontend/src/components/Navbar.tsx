@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/query" as const, label: "Ask" },
+  { href: "/brains" as const, label: "Brains" },
   { href: "/documents" as const, label: "Documents" },
 ];
 

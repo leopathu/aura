@@ -1,5 +1,7 @@
 """Pydantic schemas for RAG query and response."""
 
+import uuid
+
 from pydantic import BaseModel, Field
 
 
@@ -8,6 +10,7 @@ class QueryRequest(BaseModel):
 
     query: str = Field(..., min_length=1, max_length=2000, description="The user's question")
     top_k: int = Field(default=5, ge=1, le=20, description="Number of chunks to retrieve")
+    brain_id: uuid.UUID | None = Field(default=None, description="Scope query to a specific brain")
 
 
 class SourceChunk(BaseModel):

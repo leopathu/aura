@@ -47,17 +47,19 @@ class ChunkRepository:
         self,
         query_embedding: list[float],
         top_k: int = 5,
+        document_ids: list[uuid.UUID] | None = None,
     ) -> list[tuple[DocumentChunk, Document, float]]:
         """Find the top-k most similar chunks using cosine similarity.
 
         Args:
             query_embedding: The embedded query vector.
             top_k: Number of results to return.
+            document_ids: Optional list of document UUIDs to restrict search to.
 
         Returns:
             List of (chunk, document, similarity_score) tuples.
         """
-        result = await self.db.execute(
+        stmt = (
             select(
                 DocumentChunk,
                 Document,
@@ -67,6 +69,9 @@ class ChunkRepository:
             .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
             .limit(top_k)
         )
+        if document_ids is not None:
+            stmt = stmt.where(DocumentChunk.document_id.in_(document_ids))
+        result = await self.db.execute(stmt)
         return [(row.DocumentChunk, row.Document, row.similarity) for row in result]
 
     async def delete_by_document(self, document_id: uuid.UUID) -> None:
