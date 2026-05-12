@@ -11,13 +11,17 @@ import { Navbar } from "@/components/Navbar";
  */
 export function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const router = useRouter();
 
   useEffect(() => {
-    if (!token) {
+    if (hasHydrated && !token) {
       router.replace("/login");
     }
-  }, [token, router]);
+  }, [hasHydrated, token, router]);
+
+  // Avoid false-positive redirect before localStorage has been read
+  if (!hasHydrated) return null;
 
   if (!token) return null;
 

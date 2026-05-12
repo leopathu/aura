@@ -11,6 +11,8 @@ import type { User } from "@/types";
 interface AuthStore {
   user: User | null;
   token: string | null;
+  _hasHydrated: boolean;
+  setHasHydrated: (v: boolean) => void;
   setAuth: (user: User, token: string) => void;
   clearAuth: () => void;
 }
@@ -20,6 +22,8 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       token: null,
+      _hasHydrated: false,
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
       setAuth: (user, token) => {
         // Also write to localStorage so the Axios interceptor can read it
         localStorage.setItem("access_token", token);
@@ -32,8 +36,14 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: "aura-auth",
-      // Only persist user + token (not functions)
       partialize: (state) => ({ user: state.user, token: state.token }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+        // Keep localStorage in sync so the Axios interceptor always has the token
+        if (state?.token) {
+          localStorage.setItem("access_token", state.token);
+        }
+      },
     }
   )
 );

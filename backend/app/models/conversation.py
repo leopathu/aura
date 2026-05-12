@@ -13,15 +13,18 @@ from app.db.mixins import TimestampMixin, UUIDMixin
 
 
 class Conversation(UUIDMixin, TimestampMixin, Base):
-    """A named chat conversation scoped to a brain and user."""
+    """A named chat conversation scoped to either a Brain or an Agent."""
 
     __tablename__ = "conversations"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    brain_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("brains.id", ondelete="CASCADE"), nullable=False, index=True
+    brain_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("brains.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=True, index=True
     )
     title: Mapped[str] = mapped_column(Text, nullable=False, default="New Chat")
 

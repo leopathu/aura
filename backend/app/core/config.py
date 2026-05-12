@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     api_prefix: str = "/api/v1"
 
+    # Credentials encryption (Fernet key for agent OAuth tokens)
+    credentials_encryption_key: str = ""
+
+    # Base URLs used for building OAuth redirect URIs and post-OAuth redirects.
+    oauth_redirect_base_url: str = "http://localhost:8000"
+    frontend_base_url: str = "http://localhost:3001"
+
     # App
     debug: bool = False
     project_name: str = "Aura RAG"

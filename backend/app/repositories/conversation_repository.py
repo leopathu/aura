@@ -87,3 +87,26 @@ class ConversationRepository:
         await self.db.flush()
         await self.db.refresh(msg)
         return msg
+
+    async def create_for_agent(
+        self, user_id: uuid.UUID, agent_id: uuid.UUID, title: str = "New Chat"
+    ) -> Conversation:
+        """Create a new agent-scoped conversation."""
+        conv = Conversation(
+            user_id=user_id,
+            agent_id=agent_id,
+            title=title,
+        )
+        self.db.add(conv)
+        await self.db.flush()
+        await self.db.refresh(conv)
+        return conv
+
+    async def list_by_agent(self, user_id: uuid.UUID, agent_id: uuid.UUID) -> list[Conversation]:
+        """List all conversations for a user in a specific agent, newest first."""
+        result = await self.db.execute(
+            select(Conversation)
+            .where(Conversation.user_id == user_id, Conversation.agent_id == agent_id)
+            .order_by(Conversation.updated_at.desc())
+        )
+        return list(result.scalars().all())

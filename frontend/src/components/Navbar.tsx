@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/brains" as const, label: "Brains" },
+  { href: "/agents" as const, label: "Agents" },
   { href: "/settings" as const, label: "Settings" },
 ];
 

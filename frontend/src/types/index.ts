@@ -151,7 +151,8 @@ export interface AISettingsResponse {
 
 export interface ConversationSummary {
   id: string;
-  brain_id: string;
+  brain_id: string | null;
+  agent_id: string | null;
   title: string;
   created_at: string;
   updated_at: string;
@@ -167,9 +168,107 @@ export interface ChatMessageData {
 
 export interface ConversationDetail {
   id: string;
-  brain_id: string;
+  brain_id: string | null;
+  agent_id: string | null;
   title: string;
   messages: ChatMessageData[];
   created_at: string;
   updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------
+
+export type AppType =
+  | "gmail"
+  | "gdrive"
+  | "jira"
+  | "slack"
+  | "notion"
+  | "github"
+  | "confluence"
+  | "linear";
+
+export type SyncStatus = "idle" | "syncing" | "error";
+export type EmbedStatus = "pending" | "processing" | "ready" | "failed";
+
+export interface Agent {
+  id: string;
+  name: string;
+  description: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentCreate {
+  name: string;
+  description?: string | undefined;
+}
+
+export interface AgentUpdate {
+  name?: string | undefined;
+  description?: string | undefined;
+}
+
+export interface AgentConnection {
+  id: string;
+  agent_id: string;
+  app_type: AppType;
+  display_name: string;
+  sync_status: SyncStatus;
+  sync_error: string | null;
+  last_synced_at: string | null;
+  sync_interval_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentConnectionCreate {
+  app_type: AppType;
+  display_name: string;
+  sync_interval_minutes?: number;
+}
+
+export interface AgentDocument {
+  id: string;
+  agent_id: string;
+  agent_connection_id: string;
+  external_id: string;
+  title: string;
+  source_url: string | null;
+  embed_status: EmbedStatus;
+  embed_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentSourceChunk {
+  document_title: string;
+  source_url: string | null;
+  app_type: string;
+  chunk_index: number;
+  content: string;
+  similarity: number;
+}
+
+export interface SyncStatusResponse {
+  connection_id: string;
+  sync_status: SyncStatus;
+  last_synced_at: string | null;
+  sync_error: string | null;
+  total_docs: number;
+  ready_docs: number;
+}
+
+export interface SyncLogEntry {
+  id: string;
+  connection_id: string;
+  started_at: string;
+  finished_at: string | null;
+  items_total: number;
+  items_changed: number;
+  items_failed: number;
+  error: string | null;
 }

@@ -324,3 +324,86 @@ class RAGService:
                     yield (token, [])
         except openai.OpenAIError as exc:
             raise LLMException(f"LLM streaming failed: {exc}") from exc
+
+    async def stream_agent_answer(
+        self,
+        query: str,
+        agent_id: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> AsyncGenerator[tuple[str, list], None]:
+        """Stream an LLM answer using agent-synced content as context.
+
+        Retrieves the most relevant AgentChunks via vector similarity, builds a
+        context prompt with source metadata, and streams the LLM response.
+
+        Yields:
+            (token, sources) — sources (list[AgentSourceChunk]) only set on first yield
+            (empty string token); subsequent yields carry tokens with an empty list.
+        """
+        import uuid as _uuid  # noqa: PLC0415
+        from sqlalchemy import select  # noqa: PLC0415
+        from app.models.agent import AgentChunk, AgentDocument, AgentConnection  # noqa: PLC0415
+        from app.schemas.conversation import AgentSourceChunk  # noqa: PLC0415
+
+        agent_uuid = _uuid.UUID(agent_id)
+        query_embedding = await self._embedding_svc.embed_text(query)
+
+        # Retrieve top-k chunks via pgvector similarity search
+        result = await self._db.execute(
+            select(AgentChunk, AgentDocument, AgentConnection)
+            .join(AgentDocument, AgentChunk.agent_document_id == AgentDocument.id)
+            .join(AgentConnection, AgentDocument.agent_connection_id == AgentConnection.id)
+            .where(
+                AgentConnection.agent_id == agent_uuid,
+                AgentDocument.embed_status == "ready",
+            )
+            .order_by(AgentChunk.embedding.cosine_distance(query_embedding))
+            .limit(self._top_k)
+        )
+        rows = result.all()
+
+        sources: list[AgentSourceChunk] = [
+            AgentSourceChunk(
+                document_title=doc.title,
+                source_url=doc.source_url,
+                app_type=conn.app_type,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                similarity=round(
+                    1 - float(chunk.embedding.cosine_distance(query_embedding)), 4
+                ) if chunk.embedding is not None else 0.0,
+            )
+            for chunk, doc, conn in rows
+        ]
+
+        context = "\n\n".join(
+            f"[{src.document_title} ({src.app_type}) — chunk {src.chunk_index}]\n{src.content}"
+            for src in sources
+        )
+        system_prompt = (
+            "You are a helpful assistant with access to data synced from the user's connected apps. "
+            "Answer the user's question using only the provided context. "
+            "If the context does not contain enough information, say so clearly."
+        )
+
+        messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"})
+
+        # First yield carries sources metadata with an empty token
+        yield ("", sources)
+
+        try:
+            stream = await self._llm_client.chat.completions.create(
+                model=self._llm_model,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=self._temperature,
+                stream=True,
+            )
+            async for chunk in stream:
+                token = chunk.choices[0].delta.content or ""
+                if token:
+                    yield (token, [])
+        except openai.OpenAIError as exc:
+            raise LLMException(f"LLM agent streaming failed: {exc}") from exc

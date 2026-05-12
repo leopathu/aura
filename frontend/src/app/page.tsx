@@ -28,6 +28,12 @@ export default function HomePage() {
         >
           My Brains
         </Link>
+        <Link
+          href="/agents"
+          className="px-6 py-3 border border-slate-300 text-slate-600 rounded-lg font-medium hover:bg-slate-100 transition-colors"
+        >
+          My Agents
+        </Link>
       </div>
     </main>
   );

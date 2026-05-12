@@ -122,8 +122,7 @@ async def upload_document(
     doc_repo = DocumentRepository(db)
     payload = DocumentCreate(title=title, content=content)
     document = await doc_repo.create(payload)
-    # embed_status defaults to "pending" via model default
-    await db.flush()
+    await db.commit()  # Commit NOW — background task runs before get_db auto-commit
     document_id = str(document.id)
 
     # Schedule background processing
