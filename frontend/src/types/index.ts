@@ -19,9 +19,21 @@ export interface Organization {
   created_at: string;
 }
 
+export interface BrainItem {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  sources_count: number;
+  documents_count: number;
+  assigned_roles: string[];
+}
+
 export interface DataSource {
   id: string;
   organization_id: string;
+  brain_id?: string;
   name: string;
   type: string;
   description?: string;
@@ -46,6 +58,8 @@ export interface DataSourceTable {
 
 export interface DocumentItem {
   id: string;
+  organization_id?: string;
+  brain_id?: string;
   title: string;
   file_name: string;
   file_type: string;
@@ -112,6 +126,7 @@ export interface MCPServerItem {
 export interface Conversation {
   id: string;
   title: string;
+  brain_id?: string;
   created_at: string;
   updated_at: string;
 }

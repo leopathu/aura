@@ -22,7 +22,9 @@ from app.models import (
     Policy,
     PolicyRule,
     MCPServer,
-    MCPTool
+    MCPTool,
+    Brain,
+    BrainRole
 )
 from app.rbac.service import RBACService
 from app.worker.tasks import run_schema_discovery_job, run_document_ingestion_job
@@ -109,12 +111,39 @@ async def seed_initial_demo_data():
                 is_default=True
             ))
 
-            # 6. Create sample SQLite demo database for SQL querying
+            # 6. Create Default Brains
+            admin_role = (await db.execute(
+                select(Role).where(Role.organization_id == org.id, Role.name == "Organization Admin")
+            )).scalar_one_or_none()
+
+            finance_brain = Brain(
+                organization_id=org.id,
+                name="Finance & Revenue Brain",
+                description="Consolidates sales databases, transactions, and revenue metrics."
+            )
+            db.add(finance_brain)
+
+            ops_brain = Brain(
+                organization_id=org.id,
+                name="Operations & HR Brain",
+                description="Company operational handbooks, HR policies, and employee guidelines."
+            )
+            db.add(ops_brain)
+            await db.flush()
+
+            # Assign roles to brains
+            for r_obj in [analyst_role, admin_role]:
+                if r_obj:
+                    db.add(BrainRole(brain_id=finance_brain.id, role_id=r_obj.id))
+                    db.add(BrainRole(brain_id=ops_brain.id, role_id=r_obj.id))
+
+            # 7. Create sample SQLite demo database for SQL querying
             demo_db_path = os.path.abspath("./demo_sales.db")
             _create_local_demo_sqlite(demo_db_path)
 
             sample_source = DataSource(
                 organization_id=org.id,
+                brain_id=finance_brain.id,
                 name="Sales & Transactions DB",
                 type="SQLITE",
                 description="Production mirror of customer transactions, revenue, and product catalogs",
@@ -179,6 +208,7 @@ Travel expense claims must be submitted within 30 days of trip completion accomp
 
             doc = Document(
                 organization_id=org.id,
+                brain_id=ops_brain.id,
                 title="Employee Leave & Operations Handbook",
                 file_name="company_leave_handbook.md",
                 file_type="md",

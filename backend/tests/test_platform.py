@@ -105,3 +105,57 @@ async def test_agent_runtime_execution():
         assert any("event: run_started" in e for e in events)
         assert any("event: step" in e for e in events)
         assert any("event: done" in e for e in events)
+
+@pytest.mark.asyncio
+async def test_brain_access_control_and_scoping():
+    from app.brains.service import BrainService
+    from app.models import Brain, BrainRole, Role
+    from app.schemas.domain import BrainCreate
+
+    async with AsyncSessionLocal() as db:
+        o_res = await db.execute(select(Organization).where(Organization.slug == "acme-corp"))
+        org = o_res.scalar_one_or_none()
+        assert org is not None
+
+        # Admin user
+        admin_res = await db.execute(select(User).where(User.email == "admin@acme.com"))
+        admin_user = admin_res.scalar_one_or_none()
+
+        # Analyst user
+        analyst_res = await db.execute(select(User).where(User.email == "analyst@acme.com"))
+        analyst_user = analyst_res.scalar_one_or_none()
+
+        # 1. Admin should have unrestricted access (returns None)
+        admin_accessible = await BrainService.get_user_accessible_brain_ids(db, admin_user.id, org.id)
+        assert admin_accessible is None
+
+        # 2. Analyst should have access only to assigned brains
+        analyst_accessible = await BrainService.get_user_accessible_brain_ids(db, analyst_user.id, org.id)
+        assert analyst_accessible is not None
+        assert len(analyst_accessible) > 0
+
+        # 3. Create a restricted private Brain with NO roles assigned
+        private_brain = await BrainService.create_brain(
+            db=db,
+            organization_id=org.id,
+            name="Executive Confidential Brain",
+            description="Confidential strategy documents and M&A data",
+            role_ids=[]
+        )
+        assert private_brain.id is not None
+
+        # 4. Analyst should NOT have access to the newly created private brain
+        analyst_accessible_updated = await BrainService.get_user_accessible_brain_ids(db, analyst_user.id, org.id)
+        assert private_brain.id not in analyst_accessible_updated
+
+        # 5. Assign Analyst role to the private brain
+        analyst_role = (await db.execute(
+            select(Role).where(Role.organization_id == org.id, Role.name == "Analyst")
+        )).scalar_one_or_none()
+        assert analyst_role is not None
+
+        await BrainService.update_brain_roles(db, private_brain.id, [analyst_role.id])
+
+        # 6. Now Analyst should have access
+        analyst_accessible_after = await BrainService.get_user_accessible_brain_ids(db, analyst_user.id, org.id)
+        assert private_brain.id in analyst_accessible_after

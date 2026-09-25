@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
-import { DataSource, DataSourceTable } from "@/types";
-import { Database, Plus, RefreshCw, CheckCircle, AlertCircle, Table, Eye, Shield } from "lucide-react";
+import { DataSource, DataSourceTable, BrainItem } from "@/types";
+import { Database, Plus, RefreshCw, CheckCircle, AlertCircle, Table, Eye, Shield, BrainCircuit } from "lucide-react";
 
 export default function SourcesPage() {
   const [sources, setSources] = useState<DataSource[]>([]);
+  const [brains, setBrains] = useState<BrainItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null);
   const [schemaTables, setSchemaTables] = useState<DataSourceTable[]>([]);
@@ -16,6 +17,7 @@ export default function SourcesPage() {
   const [showModal, setShowModal] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("POSTGRES");
+  const [brainId, setBrainId] = useState("");
   const [connectionUri, setConnectionUri] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,10 +29,14 @@ export default function SourcesPage() {
   const loadSources = async () => {
     setLoading(true);
     try {
-      const data = await apiRequest<DataSource[]>("/sources");
-      setSources(data);
-      if (data.length > 0 && !selectedSource) {
-        viewSchema(data[0]);
+      const [sourcesData, brainsData] = await Promise.all([
+        apiRequest<DataSource[]>("/sources"),
+        apiRequest<BrainItem[]>("/brains"),
+      ]);
+      setSources(sourcesData);
+      setBrains(brainsData);
+      if (sourcesData.length > 0 && !selectedSource) {
+        viewSchema(sourcesData[0]);
       }
     } catch (e) {
       console.error(e);
@@ -80,10 +86,18 @@ export default function SourcesPage() {
     try {
       await apiRequest("/sources", {
         method: "POST",
-        body: JSON.stringify({ name, type, connection_uri: connectionUri, description, is_read_only: true }),
+        body: JSON.stringify({
+          name,
+          type,
+          connection_uri: connectionUri,
+          description,
+          is_read_only: true,
+          brain_id: brainId || undefined
+        }),
       });
       setShowModal(false);
       setName("");
+      setBrainId("");
       setConnectionUri("");
       setDescription("");
       loadSources();
@@ -132,9 +146,17 @@ export default function SourcesPage() {
                   <Database className="h-4 w-4 text-aura-400" />
                   <span className="font-semibold text-sm text-white">{s.name}</span>
                 </div>
-                <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-300 border border-slate-700">
-                  {s.type}
-                </span>
+                <div className="flex items-center space-x-1.5">
+                  {s.brain_id && (
+                    <span className="flex items-center gap-1 rounded bg-aura-950 border border-aura-800/60 px-1.5 py-0.5 text-[10px] text-aura-300 font-medium">
+                      <BrainCircuit className="h-2.5 w-2.5" />
+                      {brains.find((b) => b.id === s.brain_id)?.name || "Brain"}
+                    </span>
+                  )}
+                  <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-300 border border-slate-700">
+                    {s.type}
+                  </span>
+                </div>
               </div>
               <p className="mt-2 text-xs text-slate-400 line-clamp-2">{s.description || "No description provided."}</p>
               <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
@@ -261,6 +283,22 @@ export default function SourcesPage() {
                   <option value="POSTGRES">PostgreSQL</option>
                   <option value="MYSQL">MySQL</option>
                   <option value="SQLITE">SQLite</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase">Assign to Brain (Optional)</label>
+                <select
+                  value={brainId}
+                  onChange={(e) => setBrainId(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-xs text-white"
+                >
+                  <option value="">None (Global / Unassigned)</option>
+                  {brains.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

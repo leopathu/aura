@@ -34,6 +34,7 @@ async def create_conversation(
     conv = Conversation(
         organization_id=org_id,
         user_id=current_user.id,
+        brain_id=payload.brain_id,
         title=payload.title or "New Conversation"
     )
     db.add(conv)
@@ -69,6 +70,7 @@ async def get_conversation(
     return {
         "id": conv.id,
         "title": conv.title,
+        "brain_id": conv.brain_id,
         "created_at": conv.created_at.isoformat(),
         "messages": [
             {
@@ -140,13 +142,15 @@ async def send_message_stream(
     await db.commit()
 
     agent_runtime = AgentRuntime(db)
+    target_brain_id = payload.brain_id or conv.brain_id
 
     return StreamingResponse(
         agent_runtime.execute_stream(
             conversation_id=conv.id,
             user_id=current_user.id,
             organization_id=org_id,
-            user_request=payload.content
+            user_request=payload.content,
+            brain_id=target_brain_id
         ),
         media_type="text/event-stream"
     )

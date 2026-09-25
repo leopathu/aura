@@ -1,7 +1,7 @@
 import os
 import shutil
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
@@ -10,6 +10,7 @@ from app.models import Document, DocumentChunk, User, AuditLog
 from app.schemas.domain import DocumentResponse
 from app.api.deps import get_current_user, get_current_organization_id, require_permission
 from app.worker.tasks import run_document_ingestion_job
+from app.brains.service import BrainService
 
 router = APIRouter(prefix="/documents", tags=["Documents & Knowledge"])
 
@@ -19,15 +20,20 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    res = await db.execute(
-        select(Document).where(Document.organization_id == org_id).order_by(Document.created_at.desc())
-    )
+    accessible_ids = await BrainService.get_user_accessible_brain_ids(db, current_user.id, org_id)
+    stmt = select(Document).where(Document.organization_id == org_id)
+    if accessible_ids is not None:
+        stmt = stmt.where((Document.brain_id.in_(accessible_ids)) | (Document.brain_id == None))
+    stmt = stmt.order_by(Document.created_at.desc())
+
+    res = await db.execute(stmt)
     return res.scalars().all()
 
 @router.post("/upload", dependencies=[Depends(require_permission("document.upload"))])
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    brain_id: Optional[str] = Form(None),
     org_id: str = Depends(get_current_organization_id),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -54,6 +60,7 @@ async def upload_document(
 
     doc = Document(
         organization_id=org_id,
+        brain_id=brain_id,
         title=filename.rsplit(".", 1)[0].replace("_", " ").title(),
         file_name=filename,
         file_type=file_ext,

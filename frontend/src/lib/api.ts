@@ -41,7 +41,8 @@ export async function apiRequest<T = any>(
 export async function streamAgentChat(
   conversationId: string,
   content: string,
-  onEvent: (event: string, data: any) => void
+  onEvent: (event: string, data: any) => void,
+  brainId?: string
 ): Promise<void> {
   const token = typeof window !== "undefined" ? localStorage.getItem("aura_token") : null;
   const orgId = typeof window !== "undefined" ? localStorage.getItem("aura_org_id") : null;
@@ -55,7 +56,7 @@ export async function streamAgentChat(
   const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, brain_id: brainId || undefined }),
   });
 
   if (!res.ok) {

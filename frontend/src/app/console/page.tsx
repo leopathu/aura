@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import Link from "next/link";
 import {
+  BrainCircuit,
   Database,
   FileText,
   Cpu,
@@ -17,6 +18,7 @@ import {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
+    brains: 0,
     sources: 0,
     documents: 0,
     models: 0,
@@ -32,7 +34,8 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [sources, docs, models, policies, mcp, runs, logs] = await Promise.all([
+      const [brains, sources, docs, models, policies, mcp, runs, logs] = await Promise.all([
+        apiRequest<any[]>("/brains").catch(() => []),
         apiRequest<any[]>("/sources").catch(() => []),
         apiRequest<any[]>("/documents").catch(() => []),
         apiRequest<any[]>("/models/providers").catch(() => []),
@@ -43,6 +46,7 @@ export default function DashboardPage() {
       ]);
 
       setStats({
+        brains: brains.length,
         sources: sources.length,
         documents: docs.length,
         models: models.length,
@@ -62,42 +66,35 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Platform Overview</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Monitor your organization's connected data sources, security policies, AI gateways, and audit activities.
+          Monitor your organization&apos;s isolated Brains, connected databases, security policies, AI gateways, and audit activities.
         </p>
       </div>
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <Link
-          href="/console/sources"
-          className="group rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-aura-500/50 transition"
+          href="/console/brains"
+          className="group rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-aura-500/50 transition col-span-1 sm:col-span-2"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Data Sources</span>
-            <Database className="h-5 w-5 text-aura-400" />
+            <div className="flex items-center space-x-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-aura-600/15 border border-aura-500/25 text-aura-400">
+                <BrainCircuit className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-xs font-semibold uppercase text-slate-400">Knowledge & Data Brains</span>
+                <span className="block text-[11px] text-slate-500">
+                  {stats.sources} Databases &bull; {stats.documents} Documents
+                </span>
+              </div>
+            </div>
+            <span className="text-3xl font-bold text-white">{stats.brains}</span>
           </div>
-          <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-bold text-white">{stats.sources}</span>
-            <span className="text-xs text-aura-400 flex items-center space-x-1 group-hover:translate-x-0.5 transition">
-              <span>Manage</span>
-              <ArrowRight className="h-3 w-3" />
-            </span>
-          </div>
-        </Link>
-
-        <Link
-          href="/console/documents"
-          className="group rounded-xl border border-slate-800 bg-slate-900/50 p-5 hover:border-cyan-500/50 transition"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase text-slate-400">Indexed Documents</span>
-            <FileText className="h-5 w-5 text-cyan-400" />
-          </div>
-          <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-bold text-white">{stats.documents}</span>
-            <span className="text-xs text-cyan-400 flex items-center space-x-1 group-hover:translate-x-0.5 transition">
-              <span>View RAG</span>
-              <ArrowRight className="h-3 w-3" />
+          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-aura-400">
+            <span>Manage Brains, Databases & Documents</span>
+            <span className="flex items-center space-x-1 group-hover:translate-x-1 transition font-medium">
+              <span>Open</span>
+              <ArrowRight className="h-3.5 w-3.5" />
             </span>
           </div>
         </Link>

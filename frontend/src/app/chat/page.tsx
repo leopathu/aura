@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { apiRequest, streamAgentChat } from "@/lib/api";
-import { Conversation, ConversationMessage } from "@/types";
+import { Conversation, ConversationMessage, BrainItem } from "@/types";
 import Link from "next/link";
 import {
   Bot,
@@ -22,7 +22,8 @@ import {
   Sparkles,
   ExternalLink,
   LogOut,
-  FolderOpen
+  FolderOpen,
+  BrainCircuit
 } from "lucide-react";
 
 export default function ChatPage() {
@@ -32,6 +33,8 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [brains, setBrains] = useState<BrainItem[]>([]);
+  const [selectedBrainId, setSelectedBrainId] = useState<string | null>(null);
   const [inputPrompt, setInputPrompt] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -51,7 +54,17 @@ export default function ChatPage() {
       return;
     }
     loadConversations();
+    loadBrains();
   }, [token]);
+
+  const loadBrains = async () => {
+    try {
+      const data = await apiRequest<BrainItem[]>("/brains");
+      setBrains(data);
+    } catch (err) {
+      console.error("Failed to load brains", err);
+    }
+  };
 
   const loadConversations = async () => {
     try {
@@ -130,23 +143,28 @@ export default function ChatPage() {
     let finalReasoning = "";
 
     try {
-      await streamAgentChat(targetConvId, text, (event, data) => {
-        if (event === "step") {
-          setLiveSteps((prev) => [...prev, { title: data.title, status: "completed" }]);
-        } else if (event === "tool") {
-          setLiveTools((prev) => Array.from(new Set([...prev, data.tool])));
-        } else if (event === "token") {
-          accumulatedTokens += data.token;
-          setLiveTokens((prev) => prev + data.token);
-        } else if (event === "report") {
-          setLiveReport(data);
-        } else if (event === "done") {
-          finalCitations = data.citations || [];
-          finalReasoning = data.reasoning_summary || "";
-          setLiveCitations(finalCitations);
-          setLiveReasoning(finalReasoning);
-        }
-      });
+      await streamAgentChat(
+        targetConvId,
+        text,
+        (event, data) => {
+          if (event === "step") {
+            setLiveSteps((prev) => [...prev, { title: data.title, status: "completed" }]);
+          } else if (event === "tool") {
+            setLiveTools((prev) => Array.from(new Set([...prev, data.tool])));
+          } else if (event === "token") {
+            accumulatedTokens += data.token;
+            setLiveTokens((prev) => prev + data.token);
+          } else if (event === "report") {
+            setLiveReport(data);
+          } else if (event === "done") {
+            finalCitations = data.citations || [];
+            finalReasoning = data.reasoning_summary || "";
+            setLiveCitations(finalCitations);
+            setLiveReasoning(finalReasoning);
+          }
+        },
+        selectedBrainId || undefined
+      );
 
       // Commit assistant message
       const assistantMsg: ConversationMessage = {
@@ -282,6 +300,24 @@ export default function ChatPage() {
             </h1>
           </div>
           <div className="flex items-center space-x-3 text-xs">
+            {/* Brain Selector Dropdown */}
+            <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-slate-200 shadow-sm">
+              <BrainCircuit className="h-3.5 w-3.5 text-aura-400" />
+              <select
+                value={selectedBrainId || ""}
+                onChange={(e) => setSelectedBrainId(e.target.value || null)}
+                className="bg-transparent text-xs text-white focus:outline-none cursor-pointer pr-1"
+                title="Scope agent queries to a specific Brain"
+              >
+                <option value="" className="bg-slate-900 text-white">All Permitted Brains</option>
+                {brains.map((b) => (
+                  <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <span className="inline-flex items-center space-x-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-emerald-400 border border-emerald-500/20">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>Policy Gateway Active</span>

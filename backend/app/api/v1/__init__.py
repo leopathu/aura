@@ -11,11 +11,13 @@ from app.api.v1.chat import router as chat_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.agent_runs import router as agent_runs_router
+from app.api.v1.brains import router as brains_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(org_router)
 api_v1_router.include_router(rbac_router)
+api_v1_router.include_router(brains_router)
 api_v1_router.include_router(models_router)
 api_v1_router.include_router(sources_router)
 api_v1_router.include_router(documents_router)

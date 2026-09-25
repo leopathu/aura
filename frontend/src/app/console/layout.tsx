@@ -6,8 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import Link from "next/link";
 import {
   LayoutDashboard,
-  Database,
-  FileText,
+  BrainCircuit,
   Cpu,
   ShieldCheck,
   Users,
@@ -36,8 +35,7 @@ export default function ConsoleLayout({
 
   const navItems = [
     { label: "Dashboard", href: "/console", icon: LayoutDashboard },
-    { label: "Data Sources", href: "/console/sources", icon: Database },
-    { label: "Documents", href: "/console/documents", icon: FileText },
+    { label: "Brains", href: "/console/brains", icon: BrainCircuit },
     { label: "AI Models", href: "/console/models", icon: Cpu },
     { label: "Policy Engine", href: "/console/policies", icon: ShieldCheck },
     { label: "Roles & RBAC", href: "/console/roles", icon: Key },

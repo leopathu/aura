@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
-import { DocumentItem } from "@/types";
-import { FileText, Upload, Trash2, CheckCircle, Clock, AlertTriangle, Layers } from "lucide-react";
+import { DocumentItem, BrainItem } from "@/types";
+import { FileText, Upload, Trash2, CheckCircle, Clock, AlertTriangle, Layers, BrainCircuit } from "lucide-react";
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [brains, setBrains] = useState<BrainItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadBrainId, setUploadBrainId] = useState<string>("");
   const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
 
   useEffect(() => {
@@ -18,8 +20,12 @@ export default function DocumentsPage() {
   const loadDocuments = async () => {
     setLoading(true);
     try {
-      const data = await apiRequest<DocumentItem[]>("/documents");
-      setDocuments(data);
+      const [docsData, brainsData] = await Promise.all([
+        apiRequest<DocumentItem[]>("/documents"),
+        apiRequest<BrainItem[]>("/brains"),
+      ]);
+      setDocuments(docsData);
+      setBrains(brainsData);
     } catch (e) {
       console.error(e);
     } finally {
@@ -34,6 +40,9 @@ export default function DocumentsPage() {
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
+    if (uploadBrainId) {
+      formData.append("brain_id", uploadBrainId);
+    }
 
     try {
       await apiRequest("/documents/upload", {
@@ -78,17 +87,35 @@ export default function DocumentsPage() {
           </p>
         </div>
 
-        <label className="flex items-center space-x-2 rounded-lg bg-aura-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-aura-500 cursor-pointer transition">
-          <Upload className="h-4 w-4" />
-          <span>{uploading ? "Ingesting..." : "Upload File"}</span>
-          <input
-            type="file"
-            onChange={handleFileUpload}
-            disabled={uploading}
-            className="hidden"
-            accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
-          />
-        </label>
+        <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300">
+            <BrainCircuit className="h-3.5 w-3.5 text-aura-400" />
+            <select
+              value={uploadBrainId}
+              onChange={(e) => setUploadBrainId(e.target.value)}
+              className="bg-transparent text-xs text-white focus:outline-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-900 text-white">Upload to Global / No Brain</option>
+              {brains.map((b) => (
+                <option key={b.id} value={b.id} className="bg-slate-900 text-white">
+                  Upload to &apos;{b.name}&apos;
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label className="flex items-center space-x-2 rounded-lg bg-aura-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-aura-500 cursor-pointer transition">
+            <Upload className="h-4 w-4" />
+            <span>{uploading ? "Ingesting..." : "Upload File"}</span>
+            <input
+              type="file"
+              onChange={handleFileUpload}
+              disabled={uploading}
+              className="hidden"
+              accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+            />
+          </label>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -124,7 +151,15 @@ export default function DocumentsPage() {
               </div>
 
               <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-                <span className="font-mono uppercase text-slate-400">{doc.file_type}</span>
+                <div className="flex items-center space-x-1.5">
+                  <span className="font-mono uppercase text-slate-400">{doc.file_type}</span>
+                  {doc.brain_id && (
+                    <span className="flex items-center gap-1 rounded bg-aura-950 border border-aura-800/60 px-1.5 py-0.5 text-[9px] text-aura-300 font-medium">
+                      <BrainCircuit className="h-2.5 w-2.5" />
+                      {brains.find((b) => b.id === doc.brain_id)?.name || "Brain"}
+                    </span>
+                  )}
+                </div>
                 <span className="flex items-center space-x-1">
                   {doc.status === "INDEXED" ? (
                     <span className="text-emerald-400 flex items-center space-x-1">
