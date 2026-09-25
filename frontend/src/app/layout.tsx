@@ -1,22 +1,20 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { Providers } from "./providers";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Aura — RAG System",
-  description: "Retrieval-Augmented Generation powered by pgvector and OpenAI",
+  title: "Aura - Agentic Data & Knowledge Platform",
+  description: "Secure, open-source agentic data & knowledge platform connecting enterprise databases, documents, and tools with natural language.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
+    <html lang="en" className="dark">
+      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-aura-600 selection:text-white">
+        {children}
       </body>
     </html>
   );

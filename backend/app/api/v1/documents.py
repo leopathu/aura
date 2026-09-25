@@ -1,205 +1,146 @@
-"""Document ingestion and management routes."""
-
-import csv
-import io
 import os
-import uuid
-
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+import shutil
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+from app.core.config import settings
+from app.models import Document, DocumentChunk, User, AuditLog
+from app.schemas.domain import DocumentResponse
+from app.api.deps import get_current_user, get_current_organization_id, require_permission
+from app.worker.tasks import run_document_ingestion_job
 
-from app.api.deps import get_current_user
-from app.core.exceptions import NotFoundException
-from app.db.session import get_db, AsyncSessionLocal
-from app.models.user import User
-from app.repositories.ai_settings_repository import AISettingsRepository
-from app.repositories.document_repository import DocumentRepository
-from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
-from app.services.rag_service import RAGService
+router = APIRouter(prefix="/documents", tags=["Documents & Knowledge"])
 
-router = APIRouter(prefix="/documents", tags=["Documents"])
+@router.get("", response_model=List[DocumentResponse])
+async def list_documents(
+    org_id: str = Depends(get_current_organization_id),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(
+        select(Document).where(Document.organization_id == org_id).order_by(Document.created_at.desc())
+    )
+    return res.scalars().all()
 
-
-def _extract_text(filename: str, content: bytes) -> str:
-    """Extract plain text from uploaded file bytes based on extension."""
-    ext = os.path.splitext(filename)[1].lower()
-
-    if ext == ".pdf":
-        import pypdf  # noqa: PLC0415
-
-        reader = pypdf.PdfReader(io.BytesIO(content))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
-
-    if ext in (".xlsx", ".xls"):
-        import openpyxl  # noqa: PLC0415
-
-        wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-        rows: list[str] = []
-        for ws in wb.worksheets:
-            for row in ws.iter_rows(values_only=True):
-                rows.append("\t".join("" if v is None else str(v) for v in row))
-        return "\n".join(rows)
-
-    if ext == ".docx":
-        import docx  # noqa: PLC0415
-
-        doc = docx.Document(io.BytesIO(content))
-        return "\n".join(p.text for p in doc.paragraphs)
-
-    if ext == ".csv":
-        text = content.decode("utf-8", errors="replace")
-        reader = csv.reader(io.StringIO(text))
-        return "\n".join("\t".join(row) for row in reader)
-
-    # Plain text / fallback
-    return content.decode("utf-8", errors="replace")
-
-
-async def _process_document_background(
-    document_id: str,
-    content: str,
-    title: str,
-    user_id: uuid.UUID,
-) -> None:
-    """Background task: chunk, embed and store a document after fast upload."""
-    import logging  # noqa: PLC0415
-
-    logger = logging.getLogger(__name__)
-    async with AsyncSessionLocal() as db:
-        try:
-            ai = await AISettingsRepository(db).get_by_user(user_id)
-            svc = RAGService(db, ai=ai)
-            payload = DocumentCreate(title=title, content=content)
-            await svc.ingest_document(payload, document_id=document_id)
-            await db.commit()
-        except Exception as exc:
-            logger.exception("Background embedding failed for document %s: %s", document_id, exc)
-            await db.rollback()
-            # Write the failed status in a fresh transaction
-            try:
-                doc_repo = DocumentRepository(db)
-                await doc_repo.set_embed_status(
-                    uuid.UUID(document_id), "failed", str(exc)
-                )
-                await db.commit()
-            except Exception:
-                pass
-
-
-@router.post("/upload", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", dependencies=[Depends(require_permission("document.upload"))])
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    org_id: str = Depends(get_current_organization_id),
     current_user: User = Depends(get_current_user),
-) -> dict:
-    """Upload a file immediately, then chunk+embed in the background."""
-    allowed = {".pdf", ".docx", ".xlsx", ".xls", ".csv", ".txt"}
-    ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in allowed:
+    db: AsyncSession = Depends(get_db)
+):
+    filename = file.filename or "uploaded_file"
+    file_ext = filename.split(".")[-1].lower() if "." in filename else "txt"
+
+    allowed_exts = {"pdf", "docx", "doc", "xlsx", "xls", "csv", "txt", "md", "json"}
+    if file_ext not in allowed_exts:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(allowed))}",
+            status_code=400,
+            detail=f"Unsupported file type .{file_ext}. Allowed: {', '.join(allowed_exts)}"
         )
-    raw = await file.read()
-    max_bytes = 10 * 1024 * 1024  # 10 MB
-    if len(raw) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large ({len(raw) // 1024 // 1024} MB). Maximum allowed size is 10 MB.",
-        )
-    try:
-        content = _extract_text(file.filename or "file", raw)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Failed to parse file: {exc}",
-        ) from exc
 
-    title = os.path.splitext(file.filename or "Untitled")[0]
+    # Ensure storage directory exists
+    org_storage_dir = os.path.join(settings.STORAGE_DIR, org_id)
+    os.makedirs(org_storage_dir, exist_ok=True)
 
-    # Save document record immediately with status=pending
-    doc_repo = DocumentRepository(db)
-    payload = DocumentCreate(title=title, content=content)
-    document = await doc_repo.create(payload)
-    await db.commit()  # Commit NOW — background task runs before get_db auto-commit
-    document_id = str(document.id)
+    dest_path = os.path.join(org_storage_dir, filename)
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-    # Schedule background processing
-    background_tasks.add_task(
-        _process_document_background,
-        document_id=document_id,
-        content=content,
-        title=title,
-        user_id=current_user.id,
+    file_size = os.path.getsize(dest_path)
+
+    doc = Document(
+        organization_id=org_id,
+        title=filename.rsplit(".", 1)[0].replace("_", " ").title(),
+        file_name=filename,
+        file_type=file_ext,
+        file_size=file_size,
+        storage_path=dest_path,
+        status="PROCESSING",
     )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
 
-    return {"document_id": document_id, "chunks_created": 0, "embed_status": "pending"}
+    # Queue background parsing, chunking, and embedding
+    background_tasks.add_task(run_document_ingestion_job, doc.id)
 
-@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def ingest_document(
-    payload: DocumentCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Ingest a document into the RAG pipeline (chunk + embed + store)."""
-    ai = await AISettingsRepository(db).get_by_user(current_user.id)
-    svc = RAGService(db, ai=ai)
-    return await svc.ingest_document(payload)
+    audit = AuditLog(
+        organization_id=org_id,
+        user_id=current_user.id,
+        action="DOCUMENT_UPLOADED",
+        resource_type="DOCUMENT",
+        resource_id=doc.id,
+        status="SUCCESS",
+        metadata_json={"filename": filename, "size_bytes": file_size}
+    )
+    db.add(audit)
+    await db.commit()
 
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "file_name": doc.file_name,
+        "status": doc.status,
+        "message": "Document uploaded and processing queued"
+    }
 
-@router.get("/", response_model=list[DocumentResponse])
-async def list_documents(
-    limit: int = 50,
-    offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
-) -> list[DocumentResponse]:
-    """Return a paginated list of all ingested documents."""
-    repo = DocumentRepository(db)
-    documents = await repo.list_all(limit=limit, offset=offset)
-    return [DocumentResponse.model_validate(doc) for doc in documents]
-
-
-@router.get("/{document_id}", response_model=DocumentResponse)
+@router.get("/{id}")
 async def get_document(
-    document_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
-) -> DocumentResponse:
-    """Fetch a single document by UUID."""
-    repo = DocumentRepository(db)
-    document = await repo.get_by_id(document_id)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    return DocumentResponse.model_validate(document)
+    id: str,
+    org_id: str = Depends(get_current_organization_id),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(Document).where(Document.id == id, Document.organization_id == org_id))
+    doc = res.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
 
+    chunks_res = await db.execute(
+        select(DocumentChunk).where(DocumentChunk.document_id == doc.id).order_by(DocumentChunk.chunk_index).limit(5)
+    )
+    sample_chunks = chunks_res.scalars().all()
 
-@router.patch("/{document_id}", response_model=DocumentResponse)
-async def update_document(
-    document_id: uuid.UUID,
-    payload: DocumentUpdate,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
-) -> DocumentResponse:
-    """Update document metadata (title, source)."""
-    repo = DocumentRepository(db)
-    document = await repo.get_by_id(document_id)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    updated = await repo.update(document, payload)
-    return DocumentResponse.model_validate(updated)
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "file_name": doc.file_name,
+        "file_type": doc.file_type,
+        "file_size": doc.file_size,
+        "status": doc.status,
+        "chunk_count": doc.chunk_count,
+        "created_at": doc.created_at.isoformat(),
+        "sample_chunks": [
+            {
+                "chunk_index": c.chunk_index,
+                "content": c.content[:300] + ("..." if len(c.content) > 300 else ""),
+                "metadata": c.metadata_json
+            }
+            for c in sample_chunks
+        ]
+    }
 
-
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id}", dependencies=[Depends(require_permission("document.delete"))])
 async def delete_document(
-    document_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
-) -> None:
-    """Delete a document and all its associated chunks."""
-    repo = DocumentRepository(db)
-    document = await repo.get_by_id(document_id)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    await repo.delete(document)
+    id: str,
+    org_id: str = Depends(get_current_organization_id),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(Document).where(Document.id == id, Document.organization_id == org_id))
+    doc = res.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Remove file from disk
+    if os.path.exists(doc.storage_path):
+        try:
+            os.remove(doc.storage_path)
+        except Exception:
+            pass
+
+    await db.delete(doc)
+    await db.commit()
+    return {"status": "success", "message": "Document deleted"}

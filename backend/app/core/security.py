@@ -1,102 +1,37 @@
-"""Password hashing, JWT utilities, and credential encryption."""
-
 from datetime import datetime, timedelta, timezone
-from typing import Any
-
+from typing import Any, Union, Optional
 import bcrypt
-from jose import JWTError, jwt
-
+from jose import jwt
 from app.core.config import settings
 
-
-def hash_password(password: str) -> str:
-    """Return a bcrypt hash of the given plaintext password."""
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-
+def get_password_hash(password: str) -> str:
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Return True if the plaintext password matches the hash."""
-    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+    try:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
+        return False
 
+def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
 
-def create_access_token(subject: str | Any, expires_delta: timedelta | None = None) -> str:
-    """Create a signed JWT access token.
+def create_refresh_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return encoded_jwt
 
-    Args:
-        subject: Value to encode as the ``sub`` claim (typically user id).
-        expires_delta: Custom expiry duration; defaults to settings value.
-
-    Returns:
-        Encoded JWT string.
-    """
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
-    )
-    payload = {"sub": str(subject), "exp": expire}
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
-
-
-def decode_access_token(token: str) -> str:
-    """Decode a JWT and return the ``sub`` claim.
-
-    Raises:
-        JWTError: If the token is invalid or expired.
-    """
-    payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
-    sub: str | None = payload.get("sub")
-    if sub is None:
-        raise JWTError("Token missing subject")
-    return sub
-
-
-# ---------------------------------------------------------------------------
-# Credential encryption (Fernet symmetric)
-# ---------------------------------------------------------------------------
-
-import json
-
-from cryptography.fernet import Fernet, InvalidToken
-
-
-def _get_fernet() -> Fernet:
-    """Return a Fernet instance using the configured encryption key.
-
-    Raises:
-        ValueError: If ``credentials_encryption_key`` is not set in settings.
-    """
-    key = settings.credentials_encryption_key
-    if not key:
-        raise ValueError(
-            "CREDENTIALS_ENCRYPTION_KEY is not set. "
-            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
-        )
-    return Fernet(key.encode() if isinstance(key, str) else key)
-
-
-def encrypt_credentials(data: dict) -> str:
-    """Serialize *data* to JSON, encrypt it, and return a URL-safe base64 string.
-
-    Args:
-        data: Dictionary of credentials (e.g. OAuth tokens).
-
-    Returns:
-        Encrypted string suitable for storing in the database.
-    """
-    raw = json.dumps(data).encode()
-    return _get_fernet().encrypt(raw).decode()
-
-
-def decrypt_credentials(token: str) -> dict:
-    """Decrypt a string produced by :func:`encrypt_credentials`.
-
-    Args:
-        token: Encrypted credential string from the database.
-
-    Returns:
-        Original credentials dictionary.
-
-    Raises:
-        InvalidToken: If decryption fails (wrong key or tampered data).
-    """
-    raw = _get_fernet().decrypt(token.encode())
-    return json.loads(raw)
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

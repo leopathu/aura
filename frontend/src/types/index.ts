@@ -1,274 +1,147 @@
-/** Shared TypeScript types for the Aura RAG system. */
-
-// ---------------------------------------------------------------------------
-// Auth
-// ---------------------------------------------------------------------------
-
 export interface User {
   id: string;
   email: string;
+  name: string;
   is_active: boolean;
-  created_at: string;
+  is_superuser: boolean;
+  organizations?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    role: string | null;
+  }>;
 }
 
-export interface UserCreate {
-  email: string;
-  password: string;
-}
-
-export interface UserLogin {
-  email: string;
-  password: string;
-}
-
-export interface Token {
-  access_token: string;
-  token_type: string;
-}
-
-// ---------------------------------------------------------------------------
-// Documents
-// ---------------------------------------------------------------------------
-
-export interface Document {
-  id: string;
-  title: string;
-  source: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DocumentCreate {
-  title: string;
-  source?: string | undefined;
-  content: string;
-}
-
-export interface IngestResponse {
-  document_id: string;
-  chunks_created: number;
-}
-
-// ---------------------------------------------------------------------------
-// Brains
-// ---------------------------------------------------------------------------
-
-export interface Brain {
+export interface Organization {
   id: string;
   name: string;
-  description: string | null;
-  user_id: string;
+  slug: string;
   created_at: string;
-  updated_at: string;
 }
 
-export interface BrainCreate {
+export interface DataSource {
+  id: string;
+  organization_id: string;
   name: string;
-  description?: string | undefined;
+  type: string;
+  description?: string;
+  is_active: boolean;
+  is_read_only: boolean;
+  created_at: string;
 }
 
-export interface BrainUpdate {
-  name?: string | undefined;
-  description?: string | undefined;
+export interface DataSourceColumn {
+  name: string;
+  data_type: string;
+  is_nullable: boolean;
+  is_primary_key: boolean;
 }
 
-export interface BrainDocument {
+export interface DataSourceTable {
+  id: string;
+  table_name: string;
+  row_count: number;
+  columns: DataSourceColumn[];
+}
+
+export interface DocumentItem {
   id: string;
   title: string;
-  source: string | null;
-  embed_status: "pending" | "processing" | "ready" | "failed";
-  embed_error: string | null;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  status: string;
+  chunk_count: number;
+  error_message?: string;
   created_at: string;
 }
 
-// ---------------------------------------------------------------------------
-// Query
-// ---------------------------------------------------------------------------
-
-export interface SourceChunk {
-  document_title: string;
-  chunk_index: number;
-  content: string;
-  similarity: number;
-}
-
-export interface QueryRequest {
-  query: string;
-  top_k?: number;
-  brain_id?: string | undefined;
-}
-
-export interface QueryResponse {
-  answer: string;
-  sources: SourceChunk[];
-}
-
-export interface ApiError {
-  detail: string;
-  code: string;
-}
-
-// ---------------------------------------------------------------------------
-// AI Settings
-// ---------------------------------------------------------------------------
-
-export type LLMProvider = "openai" | "anthropic" | "google" | "ollama";
-export type EmbeddingProvider = "openai" | "google" | "ollama";
-
-export interface AISettingsUpdate {
-  llm_provider: LLMProvider;
-  llm_model: string;
-  llm_api_key: string;
-  llm_base_url: string;
-  temperature: number;
-  embedding_provider: EmbeddingProvider;
-  embedding_model: string;
-  embedding_api_key: string;
-  embedding_base_url: string;
-  chunk_size: number;
-  chunk_overlap: number;
-  retrieval_top_k: number;
-}
-
-export interface AISettingsResponse {
-  llm_provider: LLMProvider;
-  llm_model: string;
-  llm_api_key_set: boolean;
-  llm_base_url: string;
-  temperature: number;
-  embedding_provider: EmbeddingProvider;
-  embedding_model: string;
-  embedding_api_key_set: boolean;
-  embedding_base_url: string;
-  chunk_size: number;
-  chunk_overlap: number;
-  retrieval_top_k: number;
-}
-
-// ---------------------------------------------------------------------------
-// Chat / Conversations
-// ---------------------------------------------------------------------------
-
-export interface ConversationSummary {
-  id: string;
-  brain_id: string | null;
-  agent_id: string | null;
-  title: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ChatMessageData {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  sources_json: string | null;
-  created_at: string;
-}
-
-export interface ConversationDetail {
-  id: string;
-  brain_id: string | null;
-  agent_id: string | null;
-  title: string;
-  messages: ChatMessageData[];
-  created_at: string;
-  updated_at: string;
-}
-
-// ---------------------------------------------------------------------------
-// Agents
-// ---------------------------------------------------------------------------
-
-export type AppType =
-  | "gmail"
-  | "gdrive"
-  | "jira"
-  | "slack"
-  | "notion"
-  | "github"
-  | "confluence"
-  | "linear";
-
-export type SyncStatus = "idle" | "syncing" | "error";
-export type EmbedStatus = "pending" | "processing" | "ready" | "failed";
-
-export interface Agent {
+export interface AIProviderItem {
   id: string;
   name: string;
-  description: string | null;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  provider_type: string;
+  base_url?: string;
+  is_active: boolean;
 }
 
-export interface AgentCreate {
+export interface PolicyRule {
+  id: string;
+  role_id?: string;
+  resource_type: string;
+  resource_name: string;
+  effect: string;
+  row_filter_expr?: string;
+  allowed_columns?: string[];
+  data_masking_rule?: string;
+}
+
+export interface PolicyItem {
+  id: string;
+  organization_id: string;
   name: string;
-  description?: string | undefined;
+  description?: string;
+  is_active: boolean;
+  rules: PolicyRule[];
 }
 
-export interface AgentUpdate {
-  name?: string | undefined;
-  description?: string | undefined;
-}
-
-export interface AgentConnection {
+export interface RoleItem {
   id: string;
-  agent_id: string;
-  app_type: AppType;
-  display_name: string;
-  sync_status: SyncStatus;
-  sync_error: string | null;
-  last_synced_at: string | null;
-  sync_interval_minutes: number;
-  created_at: string;
-  updated_at: string;
+  organization_id: string;
+  name: string;
+  description?: string;
+  is_system: boolean;
+  permissions: string[];
 }
 
-export interface AgentConnectionCreate {
-  app_type: AppType;
-  display_name: string;
-  sync_interval_minutes?: number;
-}
-
-export interface AgentDocument {
+export interface MCPServerItem {
   id: string;
-  agent_id: string;
-  agent_connection_id: string;
-  external_id: string;
+  name: string;
+  description?: string;
+  transport_type: string;
+  endpoint_url?: string;
+  status: string;
+  tools: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    input_schema: any;
+    is_approved: boolean;
+  }>;
+}
+
+export interface Conversation {
+  id: string;
   title: string;
-  source_url: string | null;
-  embed_status: EmbedStatus;
-  embed_error: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export interface AgentSourceChunk {
-  document_title: string;
-  source_url: string | null;
-  app_type: string;
-  chunk_index: number;
-  content: string;
-  similarity: number;
-}
-
-export interface SyncStatusResponse {
-  connection_id: string;
-  sync_status: SyncStatus;
-  last_synced_at: string | null;
-  sync_error: string | null;
-  total_docs: number;
-  ready_docs: number;
-}
-
-export interface SyncLogEntry {
+export interface ConversationMessage {
   id: string;
-  connection_id: string;
-  started_at: string;
-  finished_at: string | null;
-  items_total: number;
-  items_changed: number;
-  items_failed: number;
-  error: string | null;
+  sender: "USER" | "ASSISTANT" | "SYSTEM";
+  content: string;
+  reasoning_summary?: string;
+  tool_calls: string[];
+  citations: string[];
+  created_at: string;
+}
+
+export interface ReportItem {
+  id: string;
+  title: string;
+  summary?: string;
+  content_markdown: string;
+  data_sources: string[];
+  created_at: string;
+}
+
+export interface AuditLogItem {
+  id: string;
+  action: string;
+  user_id?: string;
+  resource_type?: string;
+  resource_id?: string;
+  status: string;
+  created_at: string;
+  metadata: Record<string, any>;
 }
