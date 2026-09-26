@@ -152,6 +152,36 @@ class AIModel(Base):
 
 
 # -------------------------------------------------------------
+# Brains & Knowledge Scopes
+# -------------------------------------------------------------
+class Brain(Base):
+    __tablename__ = "brains"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    organization = relationship("Organization")
+    roles = relationship("BrainRole", back_populates="brain", cascade="all, delete-orphan")
+    data_sources = relationship("DataSource", back_populates="brain")
+    documents = relationship("Document", back_populates="brain")
+
+
+class BrainRole(Base):
+    __tablename__ = "brain_roles"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    brain_id = Column(String(36), ForeignKey("brains.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_id = Column(String(36), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    brain = relationship("Brain", back_populates="roles")
+    role = relationship("Role")
+
+
+# -------------------------------------------------------------
 # Data Sources & Schemas
 # -------------------------------------------------------------
 class DataSource(Base):
@@ -159,6 +189,7 @@ class DataSource(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    brain_id = Column(String(36), ForeignKey("brains.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     type = Column(String(50), nullable=False)  # POSTGRES, MYSQL, SQLITE, MONGODB
     description = Column(Text, nullable=True)
@@ -167,6 +198,7 @@ class DataSource(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     organization = relationship("Organization", back_populates="data_sources")
+    brain = relationship("Brain", back_populates="data_sources")
     credentials = relationship("DataSourceCredential", back_populates="data_source", uselist=False, cascade="all, delete-orphan")
     schemas = relationship("DataSourceSchema", back_populates="data_source", cascade="all, delete-orphan")
 
@@ -230,6 +262,7 @@ class Document(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    brain_id = Column(String(36), ForeignKey("brains.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     file_name = Column(String(255), nullable=False)
     file_type = Column(String(50), nullable=False)  # pdf, docx, txt, csv, xlsx, md
@@ -242,6 +275,7 @@ class Document(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     organization = relationship("Organization", back_populates="documents")
+    brain = relationship("Brain", back_populates="documents")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
 
 
