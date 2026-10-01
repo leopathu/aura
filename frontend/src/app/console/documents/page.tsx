@@ -17,8 +17,8 @@ export default function DocumentsPage() {
     loadDocuments();
   }, []);
 
-  const loadDocuments = async () => {
-    setLoading(true);
+  const loadDocuments = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [docsData, brainsData] = await Promise.all([
         apiRequest<DocumentItem[]>("/documents"),
@@ -29,7 +29,28 @@ export default function DocumentsPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  // Auto-poll when any document is still processing
+  useEffect(() => {
+    const hasProcessing = documents.some((d) => d.status === "PROCESSING");
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      loadDocuments(false);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [documents]);
+
+  const handleRetry = async (docId: string) => {
+    try {
+      await apiRequest(`/documents/${docId}/retry`, { method: "POST" });
+      loadDocuments(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to retry indexing");
     }
   };
 
@@ -160,19 +181,35 @@ export default function DocumentsPage() {
                     </span>
                   )}
                 </div>
-                <span className="flex items-center space-x-1">
+                <div className="flex items-center space-x-2">
                   {doc.status === "INDEXED" ? (
                     <span className="text-emerald-400 flex items-center space-x-1">
                       <CheckCircle className="h-3 w-3" />
                       <span>{doc.chunk_count} chunks</span>
                     </span>
+                  ) : doc.status === "FAILED" ? (
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-rose-400 flex items-center space-x-1" title={doc.error_message || "Ingestion failed"}>
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>Failed</span>
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRetry(doc.id);
+                        }}
+                        className="text-[10px] text-aura-400 hover:text-aura-300 underline font-medium"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   ) : (
                     <span className="text-amber-400 flex items-center space-x-1">
                       <Clock className="h-3 w-3 animate-spin" />
-                      <span>{doc.status}</span>
+                      <span>Processing...</span>
                     </span>
                   )}
-                </span>
+                </div>
               </div>
             </div>
           ))}

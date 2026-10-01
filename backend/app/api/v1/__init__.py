@@ -1,4 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import get_db
+from app.models import User
+from app.api.deps import get_current_user, get_current_organization_id
 from app.api.v1.auth import router as auth_router
 from app.api.v1.organizations import router as org_router
 from app.api.v1.rbac import router as rbac_router
@@ -27,3 +31,13 @@ api_v1_router.include_router(chat_router)
 api_v1_router.include_router(reports_router)
 api_v1_router.include_router(audit_router)
 api_v1_router.include_router(agent_runs_router)
+
+@api_v1_router.get("/roles", tags=["RBAC & Permissions"])
+async def list_roles_alias(
+    org_id: str = Depends(get_current_organization_id),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.api.v1.rbac import list_roles
+    return await list_roles(org_id=org_id, current_user=current_user, db=db)
+

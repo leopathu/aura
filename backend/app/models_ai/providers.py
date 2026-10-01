@@ -87,6 +87,19 @@ class OpenAICompatibleProvider(LLMProvider):
             data = resp.json()
             return [item["embedding"] for item in data["data"]]
 
+    async def get_available_models(self) -> List[str]:
+        url = f"{self.base_url}/models"
+        headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return [m["id"] for m in data.get("data", []) if "id" in m]
+        except Exception:
+            pass
+        return []
+
 
 class AnthropicProvider(LLMProvider):
     def __init__(self, api_key: str, base_url: Optional[str] = None):
@@ -155,6 +168,25 @@ class OllamaProvider(LLMProvider):
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = (base_url or "http://localhost:11434").rstrip("/")
 
+    async def check_health(self) -> Dict[str, Any]:
+        """Checks if Ollama daemon is reachable and lists installed models."""
+        url = f"{self.base_url}/api/tags"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                models = [m.get("name") or m.get("model") for m in data.get("models", []) if m.get("name") or m.get("model")]
+                return {"online": True, "models": models}
+            return {"online": False, "models": [], "status_code": resp.status_code}
+
+    async def get_available_models(self) -> List[str]:
+        """Fetch models pulled locally into Ollama via /api/tags."""
+        try:
+            health = await self.check_health()
+            return health.get("models", [])
+        except Exception:
+            return []
+
     async def chat(
         self,
         messages: List[Dict[str, str]],
@@ -170,8 +202,27 @@ class OllamaProvider(LLMProvider):
             "options": {"temperature": temperature}
         }
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
+            try:
+                resp = await client.post(url, json=payload)
+            except httpx.ConnectError:
+                raise ConnectionError(f"Could not connect to Ollama at '{self.base_url}'. Ensure Ollama daemon is running (`ollama serve`).")
+
+            if resp.status_code == 404:
+                err_text = ""
+                try:
+                    err_text = resp.json().get("error", "")
+                except Exception:
+                    pass
+                msg = err_text or f"Model '{model}' not found in Ollama."
+                raise ValueError(f"{msg} Run `ollama pull {model}` in your terminal to download it.")
+            elif resp.is_error:
+                err_text = ""
+                try:
+                    err_text = resp.json().get("error", resp.text)
+                except Exception:
+                    err_text = resp.text
+                raise RuntimeError(f"Ollama error ({resp.status_code}): {err_text}")
+
             data = resp.json()
             return data["message"]["content"]
 
@@ -190,15 +241,29 @@ class OllamaProvider(LLMProvider):
             "options": {"temperature": temperature}
         }
         async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream("POST", url, json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line:
+            try:
+                async with client.stream("POST", url, json=payload) as response:
+                    if response.status_code == 404:
+                        err_text = ""
                         try:
-                            chunk = json.loads(line)
-                            yield chunk["message"]["content"]
+                            body = await response.aread()
+                            err_text = json.loads(body).get("error", "")
                         except Exception:
-                            continue
+                            pass
+                        msg = err_text or f"Model '{model}' not found in Ollama."
+                        raise ValueError(f"{msg} Run `ollama pull {model}` to download it.")
+                    elif response.is_error:
+                        raise RuntimeError(f"Ollama stream error (HTTP {response.status_code})")
+
+                    async for line in response.aiter_lines():
+                        if line:
+                            try:
+                                chunk = json.loads(line)
+                                yield chunk["message"]["content"]
+                            except Exception:
+                                continue
+            except httpx.ConnectError:
+                raise ConnectionError(f"Could not connect to Ollama at '{self.base_url}'. Ensure Ollama daemon is running (`ollama serve`).")
 
     async def embed(
         self,
@@ -209,7 +274,13 @@ class OllamaProvider(LLMProvider):
         embeddings = []
         async with httpx.AsyncClient(timeout=60.0) as client:
             for text in texts:
-                resp = await client.post(url, json={"model": model, "prompt": text})
+                try:
+                    resp = await client.post(url, json={"model": model, "prompt": text})
+                except httpx.ConnectError:
+                    raise ConnectionError(f"Could not connect to Ollama at '{self.base_url}'. Ensure Ollama daemon is running.")
+
+                if resp.status_code == 404:
+                    raise ValueError(f"Embedding model '{model}' not found in Ollama. Run `ollama pull {model}` first.")
                 resp.raise_for_status()
                 embeddings.append(resp.json()["embedding"])
         return embeddings

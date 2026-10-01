@@ -55,6 +55,31 @@ class AssignRoleRequest(BaseModel):
     user_id: str
     role_id: str
 
+# Brains
+class BrainCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    role_ids: List[str] = Field(default_factory=list)
+    source_ids: List[str] = Field(default_factory=list)
+    document_ids: List[str] = Field(default_factory=list)
+
+class BrainResponse(BaseModel):
+    id: str
+    organization_id: str
+    name: str
+    description: Optional[str]
+    created_at: datetime
+    sources_count: int = 0
+    documents_count: int = 0
+    assigned_roles: List[str] = Field(default_factory=list)
+
+class AssignBrainRolesRequest(BaseModel):
+    role_ids: List[str]
+
+class ConnectBrainResourcesRequest(BaseModel):
+    source_ids: Optional[List[str]] = None
+    document_ids: Optional[List[str]] = None
+
 # AI Models
 class AIProviderCreate(BaseModel):
     name: str
@@ -68,6 +93,27 @@ class AIProviderResponse(BaseModel):
     provider_type: str
     base_url: Optional[str]
     is_active: bool
+    models_count: Optional[int] = 0
+
+class AIModelCreate(BaseModel):
+    provider_id: str
+    name: str
+    model_id: str
+    model_type: str = "CHAT"  # CHAT, EMBEDDING, RERANK
+    context_window: Optional[int] = 128000
+    is_default: Optional[bool] = False
+
+class AIModelResponse(BaseModel):
+    id: str
+    provider_id: str
+    provider_name: Optional[str] = None
+    provider_type: Optional[str] = None
+    name: str
+    model_id: str
+    model_type: str
+    context_window: int
+    is_default: bool
+    created_at: datetime
 
 # Data Sources
 class DataSourceCreate(BaseModel):
@@ -76,10 +122,12 @@ class DataSourceCreate(BaseModel):
     connection_uri: str
     description: Optional[str] = None
     is_read_only: bool = True
+    brain_id: Optional[str] = None
 
 class DataSourceResponse(BaseModel):
     id: str
     organization_id: str
+    brain_id: Optional[str] = None
     name: str
     type: str
     description: Optional[str]
@@ -93,6 +141,7 @@ class DirectQueryRequest(BaseModel):
 # Documents
 class DocumentResponse(BaseModel):
     id: str
+    brain_id: Optional[str] = None
     title: str
     file_name: str
     file_type: str
@@ -145,15 +194,18 @@ class MCPServerResponse(BaseModel):
 # Chat & Conversation
 class ConversationCreate(BaseModel):
     title: Optional[str] = "New Conversation"
+    brain_id: Optional[str] = None
 
 class ConversationResponse(BaseModel):
     id: str
     title: str
+    brain_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
 class MessageCreate(BaseModel):
     content: str
+    brain_id: Optional[str] = None
 
 class MessageResponse(BaseModel):
     id: str

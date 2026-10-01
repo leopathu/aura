@@ -30,8 +30,21 @@ export default function ConsoleLayout({
   useEffect(() => {
     if (!token) {
       router.push("/login");
+      return;
     }
-  }, [token]);
+
+    // Verify token validity against current backend instance
+    fetch("/api/v1/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok && res.status === 401) {
+          logout();
+          router.push("/login?expired=true");
+        }
+      })
+      .catch(() => {});
+  }, [token, router, logout]);
 
   const navItems = [
     { label: "Dashboard", href: "/console", icon: LayoutDashboard },

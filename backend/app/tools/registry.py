@@ -153,6 +153,7 @@ class DocumentSearchTool(BaseTool):
     async def execute(self, context: Dict[str, Any], **kwargs: Any) -> ToolResultContainer:
         db: AsyncSession = context["db"]
         organization_id: str = context["organization_id"]
+        brain_id: Optional[str] = kwargs.get("brain_id") or context.get("brain_id")
         query: str = kwargs.get("query", "")
         top_k: int = kwargs.get("top_k", 4)
 
@@ -161,7 +162,8 @@ class DocumentSearchTool(BaseTool):
                 db=db,
                 organization_id=organization_id,
                 query=query,
-                top_k=top_k
+                top_k=top_k,
+                brain_id=brain_id
             )
             citations = [r.citation for r in results]
             data = [r.to_dict() for r in results]

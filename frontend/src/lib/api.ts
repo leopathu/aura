@@ -31,6 +31,14 @@ export async function apiRequest<T = any>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      try {
+        useAuthStore.getState().logout();
+      } catch {}
+      if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/register")) {
+        window.location.href = "/login?expired=true";
+      }
+    }
     const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.detail || `Request failed with status ${res.status}`);
   }

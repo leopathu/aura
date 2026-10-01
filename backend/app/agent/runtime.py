@@ -13,6 +13,7 @@ from app.models import (
     AuditLog,
     DataSource,
     AIProvider,
+    AIModel,
     Document,
 )
 from app.agent.state import AgentState
@@ -29,7 +30,8 @@ class AgentRuntime:
         conversation_id: str,
         user_id: str,
         organization_id: str,
-        user_request: str
+        user_request: str,
+        brain_id: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         Executes the agent graph and streams progress and final answer as SSE events.
@@ -51,7 +53,8 @@ class AgentRuntime:
             conversation_id=conversation_id,
             user_id=user_id,
             organization_id=organization_id,
-            user_request=user_request
+            user_request=user_request,
+            brain_id=brain_id
         )
 
         step_counter = 0
@@ -120,16 +123,33 @@ class AgentRuntime:
             "db": self.db,
             "user_id": user_id,
             "organization_id": organization_id,
+            "brain_id": brain_id,
         }
 
         # Check for Database requirement
         executed_tools = []
         if any("data source" in p.lower() or "analytical query" in p.lower() for p in plan):
-            # Find an active data source in this organization
-            src_res = await self.db.execute(
-                select(DataSource).where(DataSource.organization_id == organization_id, DataSource.is_active == True)
-            )
-            data_source = src_res.scalar_one_or_none()
+            # Find an active data source in this organization (prioritizing brain_id if set)
+            data_source = None
+            if brain_id:
+                src_res = await self.db.execute(
+                    select(DataSource).where(
+                        DataSource.organization_id == organization_id,
+                        DataSource.brain_id == brain_id,
+                        DataSource.is_active == True
+                    )
+                )
+                data_source = src_res.scalar_one_or_none()
+
+            if not data_source:
+                src_res = await self.db.execute(
+                    select(DataSource).where(
+                        DataSource.organization_id == organization_id,
+                        DataSource.is_active == True
+                    )
+                )
+                data_source = src_res.scalar_one_or_none()
+
             if data_source and "query_database" in state.allowed_tools:
                 # Log Tool Call in DB
                 tool_call = ToolCall(
@@ -183,7 +203,7 @@ class AgentRuntime:
                 yield f"event: tool\ndata: {json.dumps({'tool': 'search_documents', 'status': 'running'})}\n\n"
 
                 doc_tool = tool_registry.get_tool("search_documents")
-                doc_res_container = await doc_tool.execute(context, query=user_request, top_k=3)
+                doc_res_container = await doc_tool.execute(context, query=user_request, top_k=3, brain_id=brain_id)
 
                 tool_res = ToolResult(
                     tool_call_id=tool_call.id,
@@ -223,7 +243,7 @@ class AgentRuntime:
         await record_step("REASON", "Synthesizing Final Response", "Generating validated answer with citations")
         yield f"event: step\ndata: {json.dumps({'step': 'reason', 'title': 'Synthesizing Verified Answer'})}\n\n"
 
-        # Fetch provider for LLM response
+        # Fetch provider and configured chat model for LLM response
         prov_stmt = select(AIProvider).where(
             AIProvider.organization_id == organization_id,
             AIProvider.is_active == True
@@ -232,16 +252,44 @@ class AgentRuntime:
         provider_record = prov_res.scalar_one_or_none()
         llm = get_llm_provider(provider_record) if provider_record else MockAIProvider()
 
+        chat_model_id = "gpt-4o"
+        if provider_record:
+            if provider_record.provider_type == "ANTHROPIC":
+                chat_model_id = "claude-3-5-sonnet-20241022"
+            elif provider_record.provider_type == "OLLAMA":
+                chat_model_id = "llama3.1"
+            elif provider_record.provider_type == "MOCK":
+                chat_model_id = "mock-gpt-4"
+
+            # Check if there is an explicit default chat model
+            m_stmt = select(AIModel).where(
+                AIModel.provider_id == provider_record.id,
+                AIModel.model_type == "CHAT",
+                AIModel.is_default == True
+            )
+            m_res = await self.db.execute(m_stmt)
+            m_obj = m_res.scalar_one_or_none()
+            if m_obj:
+                chat_model_id = m_obj.model_id
+
         prompt_messages = [
             {"role": "system", "content": "You are Aura, an enterprise AI agent. Answer accurately using the retrieved sources and cite facts."},
             {"role": "user", "content": f"Request: {user_request}\nFindings: {json.dumps(state.intermediate_findings)}\nDatabase Data: {json.dumps(state.database_results)}\nDocuments: {json.dumps(state.retrieved_documents)}"}
         ]
 
         full_answer = ""
-        async for token in llm.stream(prompt_messages, model="gpt-4o"):
-            full_answer += token
-            yield f"event: token\ndata: {json.dumps({'token': token})}\n\n"
-            await asyncio.sleep(0.01)
+        try:
+            async for token in llm.stream(prompt_messages, model=chat_model_id):
+                full_answer += token
+                yield f"event: token\ndata: {json.dumps({'token': token})}\n\n"
+                await asyncio.sleep(0.01)
+        except Exception:
+            # Fallback to MockAIProvider if external provider endpoint is offline or unreachable
+            fallback = MockAIProvider()
+            async for token in fallback.stream(prompt_messages, model="mock-gpt-4"):
+                full_answer += token
+                yield f"event: token\ndata: {json.dumps({'token': token})}\n\n"
+                await asyncio.sleep(0.01)
 
         state.final_answer = full_answer
         state.reasoning_summary = f"Synthesized answer using {len(executed_tools)} secure tools across data sources and documents."

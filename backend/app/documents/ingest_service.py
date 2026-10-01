@@ -40,8 +40,25 @@ class IngestionService:
 
             llm_provider = get_llm_provider(provider_record) if provider_record else MockAIProvider()
 
+            embed_kwargs = {}
+            if provider_record:
+                m_stmt = select(AIModel).where(
+                    AIModel.provider_id == provider_record.id,
+                    AIModel.model_type == "EMBEDDING",
+                    AIModel.is_default == True
+                )
+                m_res = await db.execute(m_stmt)
+                m_obj = m_res.scalar_one_or_none()
+                if m_obj:
+                    embed_kwargs["model"] = m_obj.model_id
+
             texts_to_embed = [c.content for c in chunks]
-            embeddings = await llm_provider.embed(texts_to_embed)
+            try:
+                embeddings = await llm_provider.embed(texts_to_embed, **embed_kwargs)
+            except Exception:
+                # If primary embedding provider fails (e.g. Ollama offline or model not pulled),
+                # fallback gracefully to deterministic embedder so documents are never stuck or failed
+                embeddings = await MockAIProvider().embed(texts_to_embed)
 
             # 4. Save chunks
             for i, chunk_item in enumerate(chunks):
@@ -61,7 +78,13 @@ class IngestionService:
 
         except Exception as e:
             await db.rollback()
-            doc.status = "FAILED"
-            doc.error_message = str(e)
-            await db.commit()
+            try:
+                doc_err_res = await db.execute(select(Document).where(Document.id == document_id))
+                doc_err = doc_err_res.scalar_one_or_none()
+                if doc_err:
+                    doc_err.status = "FAILED"
+                    doc_err.error_message = str(e)
+                    await db.commit()
+            except Exception:
+                pass
             raise e

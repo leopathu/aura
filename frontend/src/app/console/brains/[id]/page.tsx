@@ -81,12 +81,12 @@ export default function BrainViewPage() {
     loadBrainData();
   }, [brainId]);
 
-  const loadBrainData = async () => {
-    setLoading(true);
+  const loadBrainData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [brainData, rolesData, allSources, allDocs] = await Promise.all([
         apiRequest<BrainDetail>(`/brains/${brainId}`),
-        apiRequest<RoleItem[]>("/roles"),
+        apiRequest<RoleItem[]>("/rbac/roles"),
         apiRequest<DataSource[]>("/sources"),
         apiRequest<DocumentItem[]>("/documents"),
       ]);
@@ -97,9 +97,31 @@ export default function BrainViewPage() {
       setAssignedRoleIds(brainData.roles.map((r) => r.id));
     } catch (err: any) {
       console.error(err);
-      setStatusMsg(`Error loading Brain: ${err.message}`);
+      if (showLoading) setStatusMsg(`Error loading Brain: ${err.message}`);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  // Auto-poll when any document is still processing
+  useEffect(() => {
+    const hasProcessing = brain?.documents.some((d) => d.status === "PROCESSING");
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      loadBrainData(false);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [brain?.documents, brainId]);
+
+  const handleRetryDoc = async (docId: string) => {
+    try {
+      await apiRequest(`/documents/${docId}/retry`, { method: "POST" });
+      setStatusMsg("Document re-indexing queued.");
+      loadBrainData(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to retry indexing");
     }
   };
 
@@ -342,10 +364,17 @@ export default function BrainViewPage() {
 
         <div className="flex items-center space-x-2">
           <Link
-            href="/chat"
-            className="flex items-center space-x-1.5 rounded-lg bg-aura-600/20 hover:bg-aura-600/30 border border-aura-500/30 px-3.5 py-2 text-xs font-semibold text-aura-300 transition"
+            href={`/console/brains/${brain.id}/resources`}
+            className="flex items-center space-x-1.5 rounded-lg bg-aura-600 hover:bg-aura-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-aura-600/20 transition"
           >
-            <MessageSquare className="h-4 w-4" />
+            <Layers className="h-4 w-4" />
+            <span>Connect Resources</span>
+          </Link>
+          <Link
+            href="/chat"
+            className="flex items-center space-x-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition"
+          >
+            <MessageSquare className="h-4 w-4 text-aura-400" />
             <span>Chat with this Brain</span>
           </Link>
         </div>
@@ -660,10 +689,23 @@ export default function BrainViewPage() {
                           <CheckCircle className="h-3 w-3" />
                           <span>{doc.chunk_count} chunks indexed</span>
                         </span>
+                      ) : doc.status === "FAILED" ? (
+                        <div className="flex items-center space-x-2">
+                          <span className="flex items-center space-x-1 text-rose-400 text-[11px]" title={doc.error_message || "Ingestion failed"}>
+                            <AlertCircle className="h-3 w-3" />
+                            <span>Failed</span>
+                          </span>
+                          <button
+                            onClick={() => handleRetryDoc(doc.id)}
+                            className="text-[10px] text-aura-400 hover:text-aura-300 underline font-medium"
+                          >
+                            Retry
+                          </button>
+                        </div>
                       ) : (
                         <span className="flex items-center space-x-1 text-amber-400 text-[11px]">
                           <Clock className="h-3 w-3 animate-spin" />
-                          <span>Processing</span>
+                          <span>Processing...</span>
                         </span>
                       )}
                     </div>

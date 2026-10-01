@@ -99,3 +99,4 @@ class BrainService:
         for r_id in role_ids:
             db.add(BrainRole(brain_id=brain_id, role_id=r_id))
         await db.commit()
+

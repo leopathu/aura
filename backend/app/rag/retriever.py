@@ -2,7 +2,7 @@ import math
 from typing import List, Dict, Any, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Document, DocumentChunk, AIProvider
+from app.models import Document, DocumentChunk, AIProvider, AIModel
 from app.models_ai.factory import get_llm_provider
 from app.models_ai.providers import MockAIProvider
 
@@ -53,7 +53,8 @@ class DocumentRetriever:
         organization_id: str,
         query: str,
         top_k: int = 5,
-        min_score: float = 0.3
+        min_score: float = 0.3,
+        brain_id: Optional[str] = None
     ) -> List[SearchResult]:
         """
         Embeds user query and searches organization document chunks using cosine similarity.
@@ -67,12 +68,28 @@ class DocumentRetriever:
         provider_record = prov_res.scalar_one_or_none()
         llm = get_llm_provider(provider_record) if provider_record else MockAIProvider()
 
-        query_vecs = await llm.embed([query])
+        embed_kwargs = {}
+        if provider_record:
+            m_stmt = select(AIModel).where(
+                AIModel.provider_id == provider_record.id,
+                AIModel.model_type == "EMBEDDING",
+                AIModel.is_default == True
+            )
+            m_res = await db.execute(m_stmt)
+            m_obj = m_res.scalar_one_or_none()
+            if m_obj:
+                embed_kwargs["model"] = m_obj.model_id
+
+        try:
+            query_vecs = await llm.embed([query], **embed_kwargs)
+        except Exception:
+            query_vecs = await MockAIProvider().embed([query])
+
         if not query_vecs:
             return []
         query_vec = query_vecs[0]
 
-        # 2. Query all indexed document chunks in organization
+        # 2. Query all indexed document chunks in organization (and brain if specified)
         stmt = (
             select(DocumentChunk, Document.title)
             .join(Document, Document.id == DocumentChunk.document_id)
@@ -81,8 +98,23 @@ class DocumentRetriever:
                 Document.status == "INDEXED"
             )
         )
+        if brain_id:
+            stmt = stmt.where(Document.brain_id == brain_id)
         res = await db.execute(stmt)
         records = res.all()
+
+        # If brain_id had no documents, fallback to org documents
+        if not records and brain_id:
+            fallback_stmt = (
+                select(DocumentChunk, Document.title)
+                .join(Document, Document.id == DocumentChunk.document_id)
+                .where(
+                    Document.organization_id == organization_id,
+                    Document.status == "INDEXED"
+                )
+            )
+            fallback_res = await db.execute(fallback_stmt)
+            records = fallback_res.all()
 
         scored_results = []
         for chunk, doc_title in records:

@@ -76,6 +76,20 @@ export interface AIProviderItem {
   provider_type: string;
   base_url?: string;
   is_active: boolean;
+  models_count?: number;
+}
+
+export interface AIModelItem {
+  id: string;
+  provider_id: string;
+  provider_name?: string;
+  provider_type?: string;
+  name: string;
+  model_id: string;
+  model_type: "CHAT" | "EMBEDDING" | "RERANK" | string;
+  context_window: number;
+  is_default: boolean;
+  created_at: string;
 }
 
 export interface PolicyRule {

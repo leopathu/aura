@@ -32,3 +32,8 @@ class LLMProvider(ABC):
     ) -> List[List[float]]:
         """Compute vector embeddings for a list of texts."""
         pass
+
+    async def get_available_models(self) -> List[str]:
+        """Fetch or list dynamically available models from provider."""
+        return []
+

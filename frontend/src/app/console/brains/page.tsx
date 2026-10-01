@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { BrainItem, RoleItem, DataSource, DocumentItem } from "@/types";
+import Link from "next/link";
 import {
   BrainCircuit,
   Plus,
@@ -14,7 +15,8 @@ import {
   AlertCircle,
   Trash2,
   Settings,
-  Layers
+  Layers,
+  Eye
 } from "lucide-react";
 
 export default function BrainsPage() {
@@ -30,8 +32,6 @@ export default function BrainsPage() {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
-  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   // Assign Roles Modal State
@@ -53,7 +53,7 @@ export default function BrainsPage() {
     try {
       const [brainsData, rolesData, sourcesData, docsData] = await Promise.all([
         apiRequest<BrainItem[]>("/brains"),
-        apiRequest<RoleItem[]>("/roles"),
+        apiRequest<RoleItem[]>("/rbac/roles"),
         apiRequest<DataSource[]>("/sources"),
         apiRequest<DocumentItem[]>("/documents"),
       ]);
@@ -80,16 +80,12 @@ export default function BrainsPage() {
           name: newName,
           description: newDescription,
           role_ids: selectedRoleIds,
-          source_ids: selectedSourceIds,
-          document_ids: selectedDocIds,
         }),
       });
       setShowCreateModal(false);
       setNewName("");
       setNewDescription("");
       setSelectedRoleIds([]);
-      setSelectedSourceIds([]);
-      setSelectedDocIds([]);
       setStatusMsg("Brain created successfully!");
       loadAllData();
     } catch (err: any) {
@@ -237,7 +233,9 @@ export default function BrainsPage() {
                       <BrainCircuit className="h-5 w-5" />
                     </div>
                     <div>
-                      <h2 className="font-semibold text-white text-base leading-snug">{b.name}</h2>
+                      <Link href={`/console/brains/${b.id}`} className="hover:text-aura-400 transition block">
+                        <h2 className="font-semibold text-white text-base leading-snug">{b.name}</h2>
+                      </Link>
                       <span className="text-[11px] text-slate-400">
                         Created {new Date(b.created_at).toLocaleDateString()}
                       </span>
@@ -258,20 +256,26 @@ export default function BrainsPage() {
 
                 {/* Metrics */}
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-slate-950/60 border border-slate-800/80 p-2.5 flex items-center space-x-2">
+                  <Link
+                    href={`/console/brains/${b.id}/resources`}
+                    className="rounded-lg bg-slate-950/60 border border-slate-800/80 p-2.5 flex items-center space-x-2 hover:border-slate-700 transition"
+                  >
                     <Database className="h-4 w-4 text-blue-400" />
                     <div>
                       <div className="font-bold text-slate-200">{b.sources_count}</div>
                       <div className="text-[10px] text-slate-400">Data Sources</div>
                     </div>
-                  </div>
-                  <div className="rounded-lg bg-slate-950/60 border border-slate-800/80 p-2.5 flex items-center space-x-2">
+                  </Link>
+                  <Link
+                    href={`/console/brains/${b.id}/resources`}
+                    className="rounded-lg bg-slate-950/60 border border-slate-800/80 p-2.5 flex items-center space-x-2 hover:border-slate-700 transition"
+                  >
                     <FileText className="h-4 w-4 text-emerald-400" />
                     <div>
                       <div className="font-bold text-slate-200">{b.documents_count}</div>
                       <div className="text-[10px] text-slate-400">Documents</div>
                     </div>
-                  </div>
+                  </Link>
                 </div>
 
                 {/* Assigned Roles */}
@@ -299,19 +303,26 @@ export default function BrainsPage() {
 
               {/* Action Buttons */}
               <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center gap-2">
-                <button
-                  onClick={() => openRolesModal(b)}
+                <Link
+                  href={`/console/brains/${b.id}`}
                   className="flex-1 flex items-center justify-center space-x-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition"
                 >
-                  <Users className="h-3.5 w-3.5 text-aura-400" />
-                  <span>Assign Roles</span>
-                </button>
-                <button
-                  onClick={() => openResourcesModal(b)}
+                  <Eye className="h-3.5 w-3.5 text-slate-400" />
+                  <span>View Brain</span>
+                </Link>
+                <Link
+                  href={`/console/brains/${b.id}/resources`}
                   className="flex-1 flex items-center justify-center space-x-1.5 rounded-lg bg-aura-600/20 hover:bg-aura-600/30 border border-aura-500/30 px-3 py-1.5 text-xs font-semibold text-aura-300 transition"
                 >
                   <Layers className="h-3.5 w-3.5 text-aura-400" />
                   <span>Connect Resources</span>
+                </Link>
+                <button
+                  onClick={() => openRolesModal(b)}
+                  title="Assign Roles"
+                  className="p-1.5 rounded-lg border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition"
+                >
+                  <Users className="h-3.5 w-3.5 text-aura-400" />
                 </button>
               </div>
             </div>
@@ -328,7 +339,7 @@ export default function BrainsPage() {
               Create New Brain
             </h2>
             <p className="text-xs text-slate-400 mb-4">
-              Define a logical knowledge domain, connect data sources & documents, and assign roles that can query it.
+              Define a logical knowledge domain and assign roles that can access it.
             </p>
 
             <form onSubmit={handleCreateBrain} className="space-y-4">
@@ -382,61 +393,14 @@ export default function BrainsPage() {
                 </div>
               </div>
 
-              {/* Data Sources Multi-select */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Connect Data Sources</label>
-                <div className="max-h-24 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5 space-y-1.5">
-                  {sources.length === 0 ? (
-                    <span className="text-xs text-slate-500 italic">No data sources configured yet.</span>
-                  ) : (
-                    sources.map((s) => {
-                      const checked = selectedSourceIds.includes(s.id);
-                      return (
-                        <label key={s.id} className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedSourceIds([...selectedSourceIds, s.id]);
-                              else setSelectedSourceIds(selectedSourceIds.filter((id) => id !== s.id));
-                            }}
-                            className="rounded border-slate-700 text-aura-600 focus:ring-aura-500"
-                          />
-                          <span>{s.name}</span>
-                          <span className="text-[10px] text-slate-500 font-mono">({s.type})</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Documents Multi-select */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Connect Documents</label>
-                <div className="max-h-24 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5 space-y-1.5">
-                  {documents.length === 0 ? (
-                    <span className="text-xs text-slate-500 italic">No documents uploaded yet.</span>
-                  ) : (
-                    documents.map((d) => {
-                      const checked = selectedDocIds.includes(d.id);
-                      return (
-                        <label key={d.id} className="flex items-center space-x-2 text-xs text-slate-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedDocIds([...selectedDocIds, d.id]);
-                              else setSelectedDocIds(selectedDocIds.filter((id) => id !== d.id));
-                            }}
-                            className="rounded border-slate-700 text-aura-600 focus:ring-aura-500"
-                          />
-                          <span>{d.title}</span>
-                          <span className="text-[10px] text-slate-500">({d.file_name})</span>
-                        </label>
-                      );
-                    })
-                  )}
+              {/* Information Notice about direct tabs */}
+              <div className="rounded-lg border border-aura-900/50 bg-aura-950/30 p-3 text-xs text-aura-300/90 flex items-start gap-2.5">
+                <Layers className="h-4 w-4 text-aura-400 mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-semibold text-aura-200">Data Sources & Documents</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                    Databases and documents are added directly inside the Brain&apos;s workspace tabs after creation.
+                  </p>
                 </div>
               </div>
 

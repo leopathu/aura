@@ -151,3 +151,28 @@ async def delete_document(
     await db.delete(doc)
     await db.commit()
     return {"status": "success", "message": "Document deleted"}
+
+@router.post("/{id}/retry", dependencies=[Depends(require_permission("document.upload"))])
+async def retry_document_indexing(
+    id: str,
+    background_tasks: BackgroundTasks,
+    org_id: str = Depends(get_current_organization_id),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(Document).where(Document.id == id, Document.organization_id == org_id))
+    doc = res.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Clear old chunks
+    old_chunks = await db.execute(select(DocumentChunk).where(DocumentChunk.document_id == doc.id))
+    for c in old_chunks.scalars().all():
+        await db.delete(c)
+
+    doc.status = "PROCESSING"
+    doc.error_message = None
+    doc.chunk_count = 0
+    await db.commit()
+
+    background_tasks.add_task(run_document_ingestion_job, doc.id)
+    return {"status": "success", "message": "Document re-indexing queued"}

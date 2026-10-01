@@ -6,6 +6,7 @@ class AgentState(BaseModel):
     user_id: str
     organization_id: str
     user_request: str
+    brain_id: Optional[str] = None
 
     intent: Optional[str] = None  # ASK, ANALYZE, RETRIEVE, ACT
     plan: List[str] = Field(default_factory=list)

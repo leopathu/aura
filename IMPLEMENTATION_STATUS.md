@@ -70,3 +70,10 @@ Aura is structured into 6 primary operational planes:
 - [x] **Phase 12 — Frontend Chat & Console**: Modern Next.js UI for chat, Brains management, and console
 - [x] **Phase 13 — Running Platform**: Active FastAPI daemon on `0.0.0.0:8000` and Next.js daemon on `0.0.0.0:3000`
 - [x] **Phase 14 — Brain-Centric Data Architecture**: Unified console navigation by removing top-level Data Sources / Documents sidebar links; established full `/console/brains/[id]` tabbed workspace for direct database connection, file upload/indexing, schema discovery, and role governance.
+- [x] **Phase 15 — Dedicated Connect Resources Page**: Added standalone `/console/brains/[id]/resources` page featuring structured table views for added data sources, top action button "+ Add Data Source", database schema inspection, and document management.
+- [x] **Phase 16 — Dynamic AI Model Providers & Model Management**:
+  - Dynamic Provider Form at `/console/models` adapting dynamically across OpenAI, Anthropic, Ollama, Custom OpenAI Compatible (vLLM / Groq / OpenRouter), and Mock providers.
+  - Dedicated AI Model Definition modal to configure Chat Models and Embedding Models.
+  - Live Provider Scanning (`/models/providers/{id}/available-models`) listing locally pulled models (e.g. from Ollama's `/api/tags`) alongside curated presets and custom tags.
+  - Organization-wide default model governance with automatic propagation to the agent reasoning runtime and vector embedding pipeline.
+  - Resilient Ollama connection health check resolving `404 Not Found` when models aren't pulled yet, with actionable guidance.

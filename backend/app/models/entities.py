@@ -401,6 +401,7 @@ class Conversation(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     organization_id = Column(String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    brain_id = Column(String(36), ForeignKey("brains.id", ondelete="SET NULL"), nullable=True, index=True)
     title = Column(String(255), default="New Conversation")
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)

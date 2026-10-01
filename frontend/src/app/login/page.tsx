@@ -52,6 +52,13 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "true" && !error && (
+          <div className="flex items-center space-x-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 text-amber-400" />
+            <span>Your session has expired. Please sign in again.</span>
+          </div>
+        )}
+
         {error && (
           <div className="flex items-center space-x-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
             <AlertCircle className="h-5 w-5 flex-shrink-0" />

@@ -8,7 +8,7 @@ from app.policies.policy_engine import PolicyEngine
 from app.connectors.sqlite import SQLiteConnector
 from app.tools.registry import tool_registry
 from app.agent.runtime import AgentRuntime
-from app.models import Organization, User, DataSource, Document
+from app.models import Organization, User, DataSource, Document, AIProvider, AIModel
 from sqlalchemy import select
 
 @pytest.mark.asyncio
@@ -125,6 +125,21 @@ async def test_brain_access_control_and_scoping():
         analyst_res = await db.execute(select(User).where(User.email == "analyst@acme.com"))
         analyst_user = analyst_res.scalar_one_or_none()
 
+        analyst_role = (await db.execute(
+            select(Role).where(Role.organization_id == org.id, Role.name == "Analyst")
+        )).scalar_one_or_none()
+        assert analyst_role is not None
+
+        # Ensure analyst has a baseline brain assigned for testing
+        base_brain = (await db.execute(select(Brain).where(Brain.organization_id == org.id))).scalars().first()
+        if base_brain:
+            has_br = (await db.execute(
+                select(BrainRole).where(BrainRole.brain_id == base_brain.id, BrainRole.role_id == analyst_role.id)
+            )).scalar_one_or_none()
+            if not has_br:
+                db.add(BrainRole(brain_id=base_brain.id, role_id=analyst_role.id))
+                await db.commit()
+
         # 1. Admin should have unrestricted access (returns None)
         admin_accessible = await BrainService.get_user_accessible_brain_ids(db, admin_user.id, org.id)
         assert admin_accessible is None
@@ -159,3 +174,113 @@ async def test_brain_access_control_and_scoping():
         # 6. Now Analyst should have access
         analyst_accessible_after = await BrainService.get_user_accessible_brain_ids(db, analyst_user.id, org.id)
         assert private_brain.id in analyst_accessible_after
+
+
+@pytest.mark.asyncio
+async def test_ai_models_and_providers():
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(select(Organization).where(Organization.slug == "acme-corp"))
+        org = res.scalar_one_or_none()
+        assert org is not None
+
+        # 1. Create a provider (e.g. Ollama)
+        ollama_provider = AIProvider(
+            organization_id=org.id,
+            name="Test Local Ollama",
+            provider_type="OLLAMA",
+            base_url="http://localhost:11434",
+            is_active=True
+        )
+        db.add(ollama_provider)
+        await db.flush()
+
+        # 2. Add Chat Model
+        chat_model = AIModel(
+            provider_id=ollama_provider.id,
+            name="Llama 3.1 8B",
+            model_id="llama3.1:8b",
+            model_type="CHAT",
+            context_window=128000,
+            is_default=True
+        )
+        db.add(chat_model)
+
+        # 3. Add Embedding Model
+        embed_model = AIModel(
+            provider_id=ollama_provider.id,
+            name="Nomic Embed Text",
+            model_id="nomic-embed-text",
+            model_type="EMBEDDING",
+            context_window=8192,
+            is_default=True
+        )
+        db.add(embed_model)
+        await db.commit()
+
+        # 4. Verify querying models
+        models_res = await db.execute(
+            select(AIModel).where(AIModel.provider_id == ollama_provider.id)
+        )
+        models = models_res.scalars().all()
+        assert len(models) == 2
+        types = {m.model_type for m in models}
+        assert "CHAT" in types and "EMBEDDING" in types
+
+        # 5. Clean up test provider (cascades to models)
+        await db.delete(ollama_provider)
+        await db.commit()
+
+        # Verify models cascade deleted
+        models_after = (await db.execute(
+            select(AIModel).where(AIModel.provider_id == ollama_provider.id)
+        )).scalars().all()
+        assert len(models_after) == 0
+
+
+@pytest.mark.asyncio
+async def test_chat_streaming_with_brain():
+    async with AsyncSessionLocal() as db:
+        u_res = await db.execute(select(User).where(User.email == "admin@acme.com"))
+        user = u_res.scalar_one_or_none()
+        assert user is not None
+
+        o_res = await db.execute(select(Organization).where(Organization.slug == "acme-corp"))
+        org = o_res.scalar_one_or_none()
+        assert org is not None
+
+        # Fetch or create a brain
+        from app.models import Brain, Conversation
+        b_res = await db.execute(select(Brain).where(Brain.organization_id == org.id))
+        brain = b_res.scalars().first()
+        brain_id = brain.id if brain else None
+
+        # Create conversation with brain_id
+        conv = Conversation(
+            organization_id=org.id,
+            user_id=user.id,
+            brain_id=brain_id,
+            title="Brain Test Chat"
+        )
+        db.add(conv)
+        await db.commit()
+        await db.refresh(conv)
+
+        assert conv.brain_id == brain_id
+
+        # Execute stream with brain_id
+        runtime = AgentRuntime(db)
+        events = []
+        async for chunk in runtime.execute_stream(
+            conversation_id=conv.id,
+            user_id=user.id,
+            organization_id=org.id,
+            user_request="Summarize the core policies and database facts",
+            brain_id=brain_id
+        ):
+            events.append(chunk)
+
+        assert any("event: run_started" in e for e in events)
+        assert any("event: step" in e for e in events)
+        assert any("event: done" in e for e in events)
+
+
